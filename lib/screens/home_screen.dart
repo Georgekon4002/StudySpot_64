@@ -8,9 +8,49 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text("StudySpot"),
+        centerTitle: true,
       ),
-      body: const Center(
-        child: Text("This is the Home Screen"),
+      body: Column(
+        children: [
+          const SizedBox(height: 20),
+          
+          // Δείχνουμε διαθέσιμες θέσεις (dummy)
+          const Text(
+            "26 / 52 seats available",
+            style: TextStyle(fontSize: 20),
+          ),
+
+          const SizedBox(height: 20),
+
+          // Dummy grid που θα γίνει τα τραπεζάκια
+          Expanded(
+            child: GridView.builder(
+              padding: const EdgeInsets.all(20),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3, // 3 γραμμές τραπεζιών
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+              ),
+              itemCount: 12, 
+              itemBuilder: (context, index) {
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.pushNamed(context, '/focus');
+                  },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade100,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Center(
+                      child: Icon(Icons.person),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
