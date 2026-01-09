@@ -1,5 +1,5 @@
 name: studyspot_64
-description: "A new Flutter project."
+description: ""
 publish_to: "none"
 version: 0.1.0
 
@@ -11,6 +11,15 @@ dependencies:
     sdk: flutter
   english_words: ^4.0.0
   provider: ^6.1.5
+  cupertino_icons: ^1.0.6
+  # Για τοπική αποθήκευση δεδομένων (Persistence)
+  shared_preferences: ^2.2.2
+  # Για την πλοήγηση (Bottom Navigation Bar)
+  persistent_bottom_nav_bar: ^5.0.2
+  # Για το QR Code scanning
+  qr_code_scanner: ^1.0.1
+  # Για ηχητικές ειδοποιήσεις
+  audioplayers: ^5.2.1
 
 dev_dependencies:
   flutter_test:
