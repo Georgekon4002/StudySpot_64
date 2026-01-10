@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'home_screen.dart';
+// Πρέπει να υπάρχουν αυτά τα αρχεία στον φάκελο screens
+import 'login_screen.dart'; 
+import 'signup_step1_screen.dart'; 
 
 class WelcomeWrapper extends StatefulWidget {
   const WelcomeWrapper({super.key});
@@ -14,14 +16,11 @@ class _WelcomeWrapperState extends State<WelcomeWrapper> {
   final PageController _pageController = PageController();
   Timer? _autoSlideTimer;
 
-  // Purple color constant
   static const Color purpleColor = Color(0xFFBEA1F7);
-  static const Color yellowColor = Color(0xFFFFD700); // Bright yellow for logo
 
   @override
   void initState() {
     super.initState();
-    // Auto-slide to second screen after 2 seconds
     _autoSlideTimer = Timer(const Duration(seconds: 2), () {
       if (_pageController.hasClients) {
         _pageController.animateToPage(
@@ -55,127 +54,12 @@ class _WelcomeWrapperState extends State<WelcomeWrapper> {
     );
   }
 
-  Widget _buildLogo({double fontSize = 48}) {
-    // Orange-yellow color for the blocks (slightly darker than main yellow)
-    const Color blockColor = Color(0xFFFFB800);
-    
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Text(
-          'S',
-          style: GoogleFonts.inter(
-            fontSize: fontSize,
-            fontWeight: FontWeight.bold,
-            color: yellowColor,
-          ),
-        ),
-        Text(
-          't',
-          style: GoogleFonts.inter(
-            fontSize: fontSize,
-            fontWeight: FontWeight.bold,
-            color: yellowColor,
-          ),
-        ),
-        // "u" as stacked blocks
-        SizedBox(
-          width: fontSize * 0.35,
-          height: fontSize * 0.65,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: fontSize * 0.35,
-                height: fontSize * 0.28,
-                decoration: BoxDecoration(
-                  color: blockColor,
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              ),
-              SizedBox(height: fontSize * 0.04),
-              Container(
-                width: fontSize * 0.35,
-                height: fontSize * 0.28,
-                decoration: BoxDecoration(
-                  color: blockColor,
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              ),
-            ],
-          ),
-        ),
-        // "d" as stacked blocks
-        SizedBox(
-          width: fontSize * 0.35,
-          height: fontSize * 0.65,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: fontSize * 0.35,
-                height: fontSize * 0.28,
-                decoration: BoxDecoration(
-                  color: blockColor,
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              ),
-              SizedBox(height: fontSize * 0.04),
-              Container(
-                width: fontSize * 0.35,
-                height: fontSize * 0.28,
-                decoration: BoxDecoration(
-                  color: blockColor,
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Text(
-          'y',
-          style: GoogleFonts.inter(
-            fontSize: fontSize,
-            fontWeight: FontWeight.bold,
-            color: yellowColor,
-          ),
-        ),
-        Text(
-          'S',
-          style: GoogleFonts.inter(
-            fontSize: fontSize,
-            fontWeight: FontWeight.bold,
-            color: yellowColor,
-          ),
-        ),
-        Text(
-          'p',
-          style: GoogleFonts.inter(
-            fontSize: fontSize,
-            fontWeight: FontWeight.bold,
-            color: yellowColor,
-          ),
-        ),
-        Text(
-          'o',
-          style: GoogleFonts.inter(
-            fontSize: fontSize,
-            fontWeight: FontWeight.bold,
-            color: yellowColor,
-          ),
-        ),
-        Text(
-          't',
-          style: GoogleFonts.inter(
-            fontSize: fontSize,
-            fontWeight: FontWeight.bold,
-            color: yellowColor,
-          ),
-        ),
-      ],
+  Widget _buildLogo({double? width, double? height}) {
+    return Image.asset(
+      'AppIcons/intro.png',
+      width: width,
+      height: height,
+      fit: BoxFit.contain,
     );
   }
 
@@ -187,20 +71,8 @@ class _WelcomeWrapperState extends State<WelcomeWrapper> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Logo with styled "StudySpot"
-              _buildLogo(fontSize: 48),
-              const SizedBox(height: 16),
-              // Tagline
-              Text(
-                'Find your spot. Focus together',
-                style: GoogleFonts.inter(
-                  fontSize: 16,
-                  color: purpleColor,
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
+              _buildLogo(width: 350),
               const SizedBox(height: 60),
-              // Swipe up text
               Text(
                 'Swipe up',
                 style: GoogleFonts.inter(
@@ -231,19 +103,8 @@ class _WelcomeWrapperState extends State<WelcomeWrapper> {
           child: Column(
             children: [
               const SizedBox(height: 80),
-              // Logo and Tagline at the top
-              _buildLogo(fontSize: 36),
-              const SizedBox(height: 12),
-              Text(
-                'Find your spot. Focus together',
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  color: purpleColor,
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
+              _buildLogo(width: 280),
               const Spacer(),
-              // Welcome message
               Text(
                 'Welcome to StudySpot!',
                 style: GoogleFonts.inter(
@@ -253,13 +114,15 @@ class _WelcomeWrapperState extends State<WelcomeWrapper> {
                 ),
               ),
               const SizedBox(height: 60),
-              // Login button
+              
+              // Κουμπί Login
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(builder: (context) => const HomeScreen()),
+                    // ΔΙΟΡΘΩΣΗ: Αφαιρέθηκε το "const" που προκαλούσε το σφάλμα
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (context) => LoginScreen()),
                     );
                   },
                   style: ElevatedButton.styleFrom(
@@ -280,23 +143,19 @@ class _WelcomeWrapperState extends State<WelcomeWrapper> {
                   ),
                 ),
               ),
+              
               const SizedBox(height: 24),
-              // "or" separator
               Text(
                 'or',
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  color: Colors.grey[400],
-                  fontWeight: FontWeight.w400,
-                ),
+                style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[400]),
               ),
               const SizedBox(height: 24),
+              
               // Create account link
               GestureDetector(
                 onTap: () {
-                  // Handle create account navigation
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(builder: (context) => const HomeScreen()),
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (context) => SignupStep1Screen()),
                   );
                 },
                 child: Text(

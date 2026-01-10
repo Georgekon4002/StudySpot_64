@@ -249,7 +249,7 @@ class _HomeScreenState extends State<HomeScreen> {
           color: Colors.grey[100],
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+          color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, -2),
             ),
@@ -281,7 +281,7 @@ class _HomeScreenState extends State<HomeScreen> {
         border: Border.all(color: Colors.grey[300]!, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -464,7 +464,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? orangeColor.withOpacity(0.15) : Colors.transparent,
+          color: isSelected ? orangeColor.withValues(alpha: 0.15) : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
