@@ -3,7 +3,16 @@ import 'screens/welcome_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 
-void main() {
+import 'package:firebase_core/firebase_core.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    print('Firebase initialization error: $e');
+    // Continue running app even if Firebase fails in dev (e.g. missing config)
+  }
   runApp(const MyApp());
 }
 

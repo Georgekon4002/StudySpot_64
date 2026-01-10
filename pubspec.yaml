@@ -15,11 +15,21 @@ dependencies:
   audioplayers: ^6.0.0
   qr_code_scanner: ^1.0.1
   shared_preferences: ^2.2.2
+  camera: ^0.11.3
+  mobile_scanner: ^5.2.3
+  path_provider: ^2.1.5
+  path: ^1.9.1
+  firebase_core: ^3.8.0
+  cloud_firestore: ^5.5.0
+  firebase_auth: ^5.3.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  firebase_core: ^3.8.0
+  cloud_firestore: ^5.5.0
+  firebase_auth: ^5.3.1
 
 flutter:
   uses-material-design: true
