@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'qr_scan_screen.dart';
 
 // Seat states: null = empty, true = occupied, 'reserved' = reserved by user
 class HomeScreen extends StatefulWidget {
@@ -12,10 +13,15 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
-  int occupiedSpots = 26;
-  int totalSpots = 52;
+  int occupiedSpots = 38;
+  int totalSpots = 60;
   int? queueNumber; // null = not in queue, number = position in queue
   int totalQueueSize = 0; // Total people in queue
+  bool _isSeated = false; // Track if user has reserved a seat
+  DateTime? _reservationStartTime; // When user reserved the seat
+  int? _reservedSpotIndex; // Which spot user reserved
+  int? _reservedSeatIndex; // Which seat user reserved
+  Timer? _reservationTimer; // Timer for 30-minute reservation
 
   // Color constants
   static const Color orangeColor = Color(0xFFFF7B00);
@@ -24,21 +30,22 @@ class _HomeScreenState extends State<HomeScreen> {
   // Sample data for study spots (15 spots, each with 4 seats)
   // null = empty, true = occupied, 'reserved' = reserved by user
   List<List<dynamic>> studySpots = [
-    [true, null, true, null], // Spot 1
-    [true, true, true, null],  // Spot 2
-    [null, null, null, null], // Spot 3
-    [null, null, true, true],   // Spot 4
-    [true, true, true, true],     // Spot 5
-    [true, null, true, true],    // Spot 6
-    [null, null, true, null],  // Spot 7
-    [null, null, null, null], // Spot 8
-    [null, null, true, true],   // Spot 9
-    [true, true, true, null],    // Spot 10
-    [true, true, true, true],     // Spot 11
-    [null, true, null, true],   // Spot 12
-    [true, true, true, true],     // Spot 13
-    [null, null, true, true],   // Spot 14
-    [true, null, true, null],   // Spot 15
+    [true, true, true, null], // Spot 1 - 3 occupied
+    [true, true, true, null],  // Spot 2 - 3 occupied
+    [true, null, null, null], // Spot 3 - 1 occupied
+    [null, null, true, true],   // Spot 4 - 2 occupied
+    [true, true, true, true],     // Spot 5 - 4 occupied
+    [true, true, true, true],    // Spot 6 - 4 occupied
+    [true, null, true, null],  // Spot 7 - 2 occupied
+    [null, null, null, null], // Spot 8 - 0 occupied
+    [null, null, true, true],   // Spot 9 - 2 occupied
+    [true, true, true, null],    // Spot 10 - 3 occupied
+    [true, true, true, true],     // Spot 11 - 4 occupied
+    [null, true, null, true],   // Spot 12 - 2 occupied
+    [true, true, true, true],     // Spot 13 - 4 occupied
+    [null, null, true, true],   // Spot 14 - 2 occupied
+    [true, null, true, null],   // Spot 15 - 2 occupied
+    // Total: 3+3+1+2+4+4+2+0+2+3+4+2+4+2+2 = 38 occupied
   ];
 
   Timer? _queueTimer;
@@ -52,6 +59,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _queueTimer?.cancel();
+    _reservationTimer?.cancel();
     super.dispose();
   }
 
@@ -211,7 +219,7 @@ class _HomeScreenState extends State<HomeScreen> {
             // Study Spots Grid
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
                 child: GridView.builder(
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 3,
@@ -220,8 +228,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     childAspectRatio: 0.85,
                   ),
                   itemCount: studySpots.length,
+                  padding: const EdgeInsets.only(bottom: 100),
                   itemBuilder: (context, index) {
-                    return _buildStudySpotCard(index, studySpots[index]);
+                    return _buildStudySpotCard(index + 1, studySpots[index]);
                   },
                 ),
               ),
@@ -231,18 +240,38 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      // Floating Action Button (only show when in queue)
-      floatingActionButton: queueNumber != null
-          ? FloatingActionButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Add new study spot')),
-                );
-              },
-              backgroundColor: orangeColor,
-              child: const Icon(Icons.add, color: Colors.white),
-            )
-          : null,
+      // Floating Action Button (always visible, transparent background)
+      floatingActionButton: Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: FloatingActionButton(
+          onPressed: () {
+            // Show menu if there are available seats OR user is seated
+            if (_hasAvailableSeats() || _isSeated) {
+              _showFabMenu();
+            }
+          },
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          child: Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: orangeColor,
+            ),
+            child: const Icon(Icons.add, color: Colors.white),
+          ),
+        ),
+      ),
       // Bottom Navigation Bar
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -273,33 +302,54 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildStudySpotCard(int spotIndex, List<dynamic> seats) {
-    return Container(
-      decoration: BoxDecoration(
-        color: beigeColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[300]!, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+  Widget _buildStudySpotCard(int spotNumber, List<dynamic> seats) {
+    final spotIndex = spotNumber - 1; // Convert back to 0-based index
+    return Stack(
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: beigeColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey[300]!, width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: GridView.count(
-          crossAxisCount: 2,
-          mainAxisSpacing: 4,
-          crossAxisSpacing: 4,
-          physics: const NeverScrollableScrollPhysics(),
-          children: List.generate(4, (seatIndex) {
-            final seatState = seats[seatIndex];
-            return _buildSeat(spotIndex, seatIndex, seatState);
-          }),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: GridView.count(
+              crossAxisCount: 2,
+              mainAxisSpacing: 4,
+              crossAxisSpacing: 4,
+              physics: const NeverScrollableScrollPhysics(),
+              children: List.generate(4, (seatIndex) {
+                final seatState = seats[seatIndex];
+                return _buildSeat(spotIndex, seatIndex, seatState);
+              }),
+            ),
+          ),
         ),
-      ),
+        // Table number at lower center
+        Positioned(
+          bottom: 4,
+          left: 0,
+          right: 0,
+          child: Center(
+            child: Text(
+              '#$spotNumber',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -324,16 +374,64 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     } else if (isReserved) {
-      seatWidget = SizedBox(
-        width: 24,
-        height: 24,
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          valueColor: const AlwaysStoppedAnimation<Color>(
-            Colors.red,
+      // Reserved by user - show profile pic with countdown timer
+      final isUserReserved = _reservedSpotIndex == spotIndex && _reservedSeatIndex == seatIndex;
+      if (isUserReserved && _reservationStartTime != null) {
+        final now = DateTime.now();
+        final elapsed = now.difference(_reservationStartTime!);
+        final remaining = const Duration(minutes: 30) - elapsed;
+        final progress = remaining.inSeconds / (30 * 60);
+        
+        seatWidget = SizedBox(
+          width: 32,
+          height: 32,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Red progress circle
+              SizedBox(
+                width: 32,
+                height: 32,
+                child: CircularProgressIndicator(
+                  value: progress.clamp(0.0, 1.0),
+                  strokeWidth: 3,
+                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.red),
+                  backgroundColor: Colors.red.withOpacity(0.2),
+                ),
+              ),
+              // Profile picture
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: orangeColor,
+                  border: Border.all(color: Colors.white, width: 1),
+                ),
+                child: const Icon(
+                  Icons.person,
+                  color: Colors.white,
+                  size: 14,
+                ),
+              ),
+            ],
           ),
-        ),
-      );
+        );
+      } else {
+        seatWidget = Container(
+          width: 24,
+          height: 24,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: orangeColor,
+          ),
+          child: const Icon(
+            Icons.person,
+            color: Colors.white,
+            size: 16,
+          ),
+        );
+      }
     } else {
       seatWidget = Container(
         width: 20,
@@ -349,7 +447,8 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    if (isEmpty) {
+    // Only allow interaction if seat is empty AND user is not already seated
+    if (isEmpty && !_isSeated) {
       return GestureDetector(
         onTapDown: (TapDownDetails details) => _showReserveMenu(
             context, details.globalPosition, spotIndex, seatIndex),
@@ -359,8 +458,12 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     } else {
+      // Locked state - show with reduced opacity if user is seated and this seat is empty
       return Center(
-        child: seatWidget,
+        child: Opacity(
+          opacity: (isEmpty && _isSeated) ? 0.5 : 1.0,
+          child: seatWidget,
+        ),
       );
     }
   }
@@ -430,6 +533,10 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       studySpots[spotIndex][seatIndex] = 'reserved';
       occupiedSpots++;
+      _isSeated = true; // Mark user as seated
+      _reservedSpotIndex = spotIndex;
+      _reservedSeatIndex = seatIndex;
+      _reservationStartTime = DateTime.now();
       
       // If user was in queue and reserved a seat, remove from queue
       if (queueNumber != null) {
@@ -438,13 +545,500 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     });
 
-    // After 2 seconds, mark as occupied
-    Future.delayed(const Duration(seconds: 2), () {
+    // Start 30-minute timer
+    _reservationTimer?.cancel();
+    _reservationTimer = Timer(const Duration(minutes: 30), () {
       if (mounted) {
+        // Timer expired - release the seat
         setState(() {
-          studySpots[spotIndex][seatIndex] = true;
+          if (_reservedSpotIndex != null && _reservedSeatIndex != null) {
+            studySpots[_reservedSpotIndex!][_reservedSeatIndex!] = null;
+            occupiedSpots = occupiedSpots > 0 ? occupiedSpots - 1 : 0;
+          }
+          _isSeated = false;
+          _reservedSpotIndex = null;
+          _reservedSeatIndex = null;
+          _reservationStartTime = null;
         });
       }
+    });
+
+    // Update UI every second for countdown
+    Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted || !_isSeated || _reservationStartTime == null) {
+        timer.cancel();
+        return;
+      }
+      final elapsed = DateTime.now().difference(_reservationStartTime!);
+      if (elapsed >= const Duration(minutes: 30)) {
+        timer.cancel();
+        return;
+      }
+      setState(() {}); // Trigger rebuild for countdown
+    });
+  }
+
+  bool _hasAvailableSeats() {
+    for (var spot in studySpots) {
+      for (var seat in spot) {
+        if (seat == null) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  void _showFabMenu() {
+    final RenderBox overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
+    final Size screenSize = MediaQuery.of(context).size;
+    final double bottomNavHeight = 80; // Approximate bottom nav height
+    final double fabSize = 56; // Standard FAB size
+    final double fabPadding = 16; // Standard FAB padding from edges
+
+    showMenu(
+      context: context,
+      position: RelativeRect.fromRect(
+        Rect.fromLTWH(
+          screenSize.width - 200, // Position menu to the left of FAB area
+          screenSize.height - bottomNavHeight - fabSize - fabPadding - 120, // Position above FAB
+          0,
+          0,
+        ),
+        Rect.fromLTWH(0, 0, overlay.size.width, overlay.size.height),
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      elevation: 8,
+      items: [
+        PopupMenuItem(
+          padding: EdgeInsets.zero,
+          enabled: !_isSeated, // Disable when seated
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: !_isSeated
+                  ? () {
+                      Navigator.of(context).pop();
+                      _openQRScanner();
+                    }
+                  : null,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.qr_code_scanner,
+                      color: !_isSeated
+                          ? Colors.grey[800]
+                          : Colors.grey[400],
+                      size: 24,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Scan QR',
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: !_isSeated
+                            ? Colors.black
+                            : Colors.grey[400],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        PopupMenuItem(
+          padding: EdgeInsets.zero,
+          enabled: _isSeated, // Enable when seated
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _isSeated
+                  ? () {
+                      Navigator.of(context).pop();
+                      _showLeaveDialog();
+                    }
+                  : null,
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(16),
+                bottomRight: Radius.circular(16),
+              ),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.logout,
+                      color: _isSeated
+                          ? Colors.grey[800]
+                          : Colors.grey[400],
+                      size: 24,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Leave',
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: _isSeated
+                            ? Colors.black
+                            : Colors.grey[400],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showLeaveDialog() {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: beigeColor,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'See you later! 👋',
+                  style: GoogleFonts.inter(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Your seat is now free for someone else who needs to focus 😊',
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w400,
+                    color: Colors.black87,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      _leaveSeat();
+                    },
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    ),
+                    child: Text(
+                      'Back to Map',
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: orangeColor,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _leaveSeat() {
+    // Cancel reservation timer
+    _reservationTimer?.cancel();
+    
+    // Find and remove reserved seat
+    if (_reservedSpotIndex != null && _reservedSeatIndex != null) {
+      setState(() {
+        studySpots[_reservedSpotIndex!][_reservedSeatIndex!] = null;
+        occupiedSpots = occupiedSpots > 0 ? occupiedSpots - 1 : 0;
+        _isSeated = false;
+        _reservedSpotIndex = null;
+        _reservedSeatIndex = null;
+        _reservationStartTime = null;
+      });
+    }
+  }
+
+  // Parse QR code to get spot and seat indices
+  // QR code format: "SEAT-{spotIndex}-{seatIndex}"
+  Map<String, int>? _parseQRCode(String qrCode) {
+    if (qrCode.startsWith('SEAT-')) {
+      final parts = qrCode.substring(5).split('-');
+      if (parts.length == 2) {
+        final spotIndex = int.tryParse(parts[0]);
+        final seatIndex = int.tryParse(parts[1]);
+        if (spotIndex != null && seatIndex != null) {
+          return {'spotIndex': spotIndex, 'seatIndex': seatIndex};
+        }
+      }
+    }
+    return null;
+  }
+
+  void _openQRScanner() async {
+    final result = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (context) => const QRScanScreen(),
+      ),
+    );
+
+    if (result != null) {
+      _handleQRScan(result);
+    }
+  }
+
+  void _handleQRScan(String qrCode) {
+    final parsed = _parseQRCode(qrCode);
+    if (parsed == null) {
+      // Invalid QR code format
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid QR code')),
+      );
+      return;
+    }
+
+    final spotIndex = parsed['spotIndex']!;
+    final seatIndex = parsed['seatIndex']!;
+
+    // Validate indices
+    if (spotIndex < 0 || spotIndex >= studySpots.length ||
+        seatIndex < 0 || seatIndex >= 4) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid seat location')),
+      );
+      return;
+    }
+
+    final seatState = studySpots[spotIndex][seatIndex];
+    final isEmpty = seatState == null;
+    final isReserved = seatState == 'reserved';
+
+    // Check if seat is free
+    if (isEmpty || (isReserved && _reservedSpotIndex == spotIndex && _reservedSeatIndex == seatIndex)) {
+      // Seat is free - show confirmation dialog
+      _showSeatFreeDialog(spotIndex, seatIndex);
+    } else {
+      // Seat is taken
+      _showSeatTakenDialog();
+    }
+  }
+
+  void _showSeatFreeDialog(int spotIndex, int seatIndex) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: beigeColor,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Seat is free! 🥳',
+                  style: GoogleFonts.inter(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'You want to sit here to focus and study?',
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w400,
+                    color: Colors.black87,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        _confirmSeatOccupancy(spotIndex, seatIndex);
+                      },
+                      child: Text(
+                        'Accept',
+                        style: GoogleFonts.inter(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: orangeColor,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                      child: Text(
+                        'Decline',
+                        style: GoogleFonts.inter(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: orangeColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showSeatTakenDialog() {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: beigeColor,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Seat is taken 💦',
+                  style: GoogleFonts.inter(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Unfortunately this seat is already taken. You can find which seat is free on the map.',
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w400,
+                    color: Colors.black87,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                    child: Text(
+                      'Back to Map',
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: orangeColor,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _confirmSeatOccupancy(int spotIndex, int seatIndex) {
+    // If user had a reserved seat, release it
+    if (_isSeated && _reservedSpotIndex != null && _reservedSeatIndex != null) {
+      studySpots[_reservedSpotIndex!][_reservedSeatIndex!] = null;
+      _reservationTimer?.cancel();
+    }
+
+    setState(() {
+      // Mark seat as occupied
+      studySpots[spotIndex][seatIndex] = true;
+      occupiedSpots++;
+      
+      // Update user status
+      _isSeated = true;
+      _reservedSpotIndex = spotIndex;
+      _reservedSeatIndex = seatIndex;
+      _reservationStartTime = DateTime.now();
+    });
+
+    // Start 30-minute timer for the new seat
+    _reservationTimer?.cancel();
+    _reservationTimer = Timer(const Duration(minutes: 30), () {
+      if (mounted) {
+        setState(() {
+          if (_reservedSpotIndex != null && _reservedSeatIndex != null) {
+            studySpots[_reservedSpotIndex!][_reservedSeatIndex!] = null;
+            occupiedSpots = occupiedSpots > 0 ? occupiedSpots - 1 : 0;
+          }
+          _isSeated = false;
+          _reservedSpotIndex = null;
+          _reservedSeatIndex = null;
+          _reservationStartTime = null;
+        });
+      }
+    });
+
+    // Update UI every second for countdown
+    Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted || !_isSeated || _reservationStartTime == null) {
+        timer.cancel();
+        return;
+      }
+      final elapsed = DateTime.now().difference(_reservationStartTime!);
+      if (elapsed >= const Duration(minutes: 30)) {
+        timer.cancel();
+        return;
+      }
+      setState(() {}); // Trigger rebuild for countdown
     });
   }
 
