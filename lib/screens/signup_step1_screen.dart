@@ -32,7 +32,10 @@ class _SignupStep1ScreenState extends State<SignupStep1Screen> {
     if (_formKey.currentState!.validate()) {
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (context) => const SignupStep2Screen(),
+          builder: (context) => SignupStep2Screen(
+            email: _emailController.text.trim(),
+            password: _passwordController.text.trim(),
+          ),
         ),
       );
     }

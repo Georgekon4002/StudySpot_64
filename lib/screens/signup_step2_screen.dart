@@ -1,9 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'home_screen.dart';
 
 class SignupStep2Screen extends StatefulWidget {
-  const SignupStep2Screen({super.key});
+  final String email;
+  final String password;
+
+  const SignupStep2Screen({
+    super.key,
+    required this.email,
+    required this.password,
+  });
 
   @override
   State<SignupStep2Screen> createState() => _SignupStep2ScreenState();
@@ -13,9 +22,10 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
   final _formKey = GlobalKey<FormState>();
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
-  
+
   String? _selectedUni;
   String? _selectedSchool;
+  bool _isLoading = false;
 
   static const Color purpleColor = Color(0xFFBEA1F7);
 
@@ -29,13 +39,65 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
     super.dispose();
   }
 
-  void _onNext() {
+  Future<void> _onNext() async {
     if (_formKey.currentState!.validate()) {
-      // Navigate to Home Screen on completion
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
-        (route) => false,
-      );
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        // 1. Create User
+        UserCredential userCredential = await FirebaseAuth.instance
+            .createUserWithEmailAndPassword(
+              email: widget.email,
+              password: widget.password,
+            );
+
+        // 2. Additional User Data (Optional - specific to user feedback)
+        // Check if we need to store profile data in Firestore
+        // Since user asked just for "registration on Users tab", creating user is enough.
+        // But for "persistence" of profile, we might want to store names.
+
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userCredential.user!.uid)
+            .set({
+              'firstName': _firstNameController.text.trim(),
+              'lastName': _lastNameController.text.trim(),
+              'university': _selectedUni,
+              'school': _selectedSchool,
+              'email': widget.email,
+              'createdAt': FieldValue.serverTimestamp(),
+            });
+
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
+            (route) => false,
+          );
+        }
+      } on FirebaseAuthException catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e.message ?? 'Registration failed'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
     }
   }
 
@@ -240,7 +302,7 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: _onNext,
+                    onPressed: _isLoading ? null : _onNext,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: purpleColor,
                       foregroundColor: Colors.white,
@@ -250,13 +312,15 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
                       ),
                       elevation: 0,
                     ),
-                    child: Text(
-                      'Next',
-                      style: GoogleFonts.inter(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    child: _isLoading
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : Text(
+                            'Complete Registration',
+                            style: GoogleFonts.inter(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                   ),
                 ),
                 const SizedBox(height: 24),

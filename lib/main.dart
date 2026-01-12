@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
-import 'screens/welcome_screen.dart'; 
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 
 import 'package:firebase_core/firebase_core.dart';
 
+import 'firebase_options.dart';
+
+import 'auth_wrapper.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
-    await Firebase.initializeApp();
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
   } catch (e) {
     print('Firebase initialization error: $e');
     // Continue running app even if Firebase fails in dev (e.g. missing config)
@@ -28,7 +33,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFBEA1F7)),
         useMaterial3: true,
       ),
-      home: const WelcomeWrapper(), 
+      home: const AuthWrapper(),
       routes: {
         '/login': (context) => const LoginScreen(),
         '/home': (context) => const HomeScreen(),

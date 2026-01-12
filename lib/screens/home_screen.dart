@@ -24,6 +24,7 @@ class _HomeScreenState extends State<HomeScreen> {
   DateTime? _reservationStartTime; // When user reserved the seat
   int? _reservedSpotIndex; // Which spot user reserved
   int? _reservedSeatIndex; // Which seat user reserved
+  String? _reservationStatus; // 'reserved' or 'occupied'
   Timer? _reservationTimer; // Timer for 30-minute reservation
 
   // Color constants
@@ -81,65 +82,135 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('study_spots')
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return const Center(child: Text("Error loading spots"));
-          }
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('study_spots').snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const Scaffold(
+            backgroundColor: Colors.white,
+            body: Center(child: Text("Error loading spots")),
+          );
+        }
 
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
+        if (!snapshot.hasData) {
+          return const Scaffold(
+            backgroundColor: Colors.white,
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
 
-          final docs = snapshot.data!.docs;
+        final docs = snapshot.data!.docs;
 
-          // Initialize dummy data if empty
-          if (docs.isEmpty) {
-            _initializeDummyData();
-            return const Center(child: CircularProgressIndicator());
-          }
+        // Initialize dummy data if empty
+        if (docs.isEmpty) {
+          _initializeDummyData();
+          return const Scaffold(
+            backgroundColor: Colors.white,
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
 
-          // Parse Firestore data
-          int currentOccupied = 0;
-          Map<int, List<dynamic>> tempSpots = {};
+        // Parse Firestore data
+        int currentOccupied = 0;
+        Map<int, List<dynamic>> tempSpots = {};
 
-          for (var doc in docs) {
-            final header = doc.id;
-            if (header.startsWith('spot_')) {
-              final index = int.tryParse(header.split('_')[1]) ?? 0;
-              final spotIndex = index - 1;
-              if (spotIndex >= 0 && spotIndex < 15) {
-                final data = doc.data() as Map<String, dynamic>;
-                final seatsMap = data['seats'] as Map<String, dynamic>? ?? {};
+        // Local tracking for this frame
+        bool frameIsSeated = false;
+        String? frameReservationStatus;
+        int? frameReservedSpotIndex;
+        int? frameReservedSeatIndex;
+        DateTime? frameReservationTimestamp;
 
-                final List<dynamic> seatList = List.generate(4, (i) {
-                  final letter = ['A', 'B', 'C', 'D'][i];
-                  if (seatsMap.containsKey(letter)) {
-                    final status = seatsMap[letter];
-                    if (status != null) currentOccupied++;
-                    return status == 'occupied' ? true : status;
+        for (var doc in docs) {
+          final header = doc.id;
+          if (header.startsWith('spot_')) {
+            final index = int.tryParse(header.split('_')[1]) ?? 0;
+            final spotIndex = index - 1;
+            if (spotIndex >= 0 && spotIndex < 15) {
+              final data = doc.data() as Map<String, dynamic>;
+              final seatsMap = data['seats'] as Map<String, dynamic>? ?? {};
+
+              final List<dynamic> seatList = List.generate(4, (i) {
+                final letter = ['A', 'B', 'C', 'D'][i];
+                if (seatsMap.containsKey(letter)) {
+                  final seatData = seatsMap[letter];
+
+                  // Handle legacy string data ('occupied'/'reserved')
+                  if (seatData is String) {
+                    if (seatData == 'occupied' || seatData == 'reserved') {
+                      currentOccupied++;
+                      return seatData == 'reserved' ? 'reserved' : true;
+                    }
+                    return null;
+                  }
+                  // Handle new map object data
+                  else if (seatData is Map<String, dynamic>) {
+                    final status = seatData['status'];
+                    final userId = seatData['userId'];
+                    final timestamp = seatData['timestamp'] as Timestamp?;
+
+                    // Check if this reservation belongs to current user
+                    if (userId == FirebaseAuth.instance.currentUser?.uid) {
+                      frameIsSeated = true;
+                      frameReservationStatus = status;
+                      frameReservedSpotIndex = spotIndex;
+                      frameReservedSeatIndex = i;
+                      if (timestamp != null) {
+                        frameReservationTimestamp = timestamp.toDate();
+                      }
+                    }
+
+                    if (status == 'occupied') {
+                      currentOccupied++;
+                      return true;
+                    } else if (status == 'reserved') {
+                      currentOccupied++;
+                      return 'reserved';
+                    }
                   }
                   return null;
-                });
-                tempSpots[spotIndex] = seatList;
-              }
+                }
+                return null;
+              });
+              tempSpots[spotIndex] = seatList;
             }
           }
+        }
 
-          studySpots = List.generate(
-            15,
-            (i) => tempSpots[i] ?? [null, null, null, null],
-          );
-          occupiedSpots = currentOccupied;
+        // Sync Local State if Stream differs (Source of Truth)
+        if (frameIsSeated) {
+          _isSeated = true;
+          _reservationStatus = frameReservationStatus;
+          _reservedSpotIndex = frameReservedSpotIndex;
+          _reservedSeatIndex = frameReservedSeatIndex;
+          if (frameReservationTimestamp != null) {
+            _reservationStartTime = frameReservationTimestamp;
+          }
+          // Ensure timer is running if we are seated
+          if (_reservationTimer == null || !_reservationTimer!.isActive) {
+            Future.microtask(() => _startReservationTimer());
+          }
+        } else if (_isSeated && !frameIsSeated) {
+          // We thought we were seated, but Firestore says no.
+          _isSeated = false;
+          _reservationStatus = null;
+          _reservedSpotIndex = null;
+          _reservedSeatIndex = null;
+          _reservationStartTime = null;
+          _reservationTimer?.cancel();
+        }
 
-          final progress = occupiedSpots / totalSpots;
+        studySpots = List.generate(
+          15,
+          (i) => tempSpots[i] ?? [null, null, null, null],
+        );
+        occupiedSpots = currentOccupied;
 
-          return SafeArea(
+        final progress = occupiedSpots / totalSpots;
+
+        return Scaffold(
+          backgroundColor: Colors.white,
+          body: SafeArea(
             child: Column(
               children: [
                 // Header Section
@@ -173,16 +244,42 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                       // Profile Picture
-                      GestureDetector(
-                        onTap: () {
-                          FirebaseAuth.instance.signOut().then((_) {
-                            Navigator.of(context).pushReplacement(
-                              MaterialPageRoute(
-                                builder: (context) => const WelcomeWrapper(),
-                              ),
-                            );
-                          });
+                      PopupMenuButton<String>(
+                        onSelected: (value) {
+                          if (value == 'logout') {
+                            FirebaseAuth.instance.signOut().then((_) {
+                              Navigator.of(context).pushAndRemoveUntil(
+                                MaterialPageRoute(
+                                  builder: (context) => const WelcomeWrapper(),
+                                ),
+                                (route) => false,
+                              );
+                            });
+                          }
                         },
+                        itemBuilder: (BuildContext context) =>
+                            <PopupMenuEntry<String>>[
+                              PopupMenuItem<String>(
+                                value: 'logout',
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.logout,
+                                      color: Colors.red[400],
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      'Sign Out',
+                                      style: GoogleFonts.inter(
+                                        color: Colors.red[400],
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                         child: Container(
                           width: 40,
                           height: 40,
@@ -195,7 +292,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ),
                           child: Icon(
-                            Icons.logout,
+                            Icons.person,
                             color: Colors.grey[600],
                             size: 24,
                           ),
@@ -316,68 +413,72 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 8),
               ],
             ),
-          );
-        },
-      ),
-      // Floating Action Button (always visible, transparent background)
-      floatingActionButton: Container(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: FloatingActionButton(
-          onPressed: () {
-            // Show menu if there are available seats OR user is seated
-            if (_hasAvailableSeats() || _isSeated) {
-              _showFabMenu();
-            }
-          },
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          child: Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: orangeColor,
-            ),
-            child: const Icon(Icons.add, color: Colors.white),
           ),
-        ),
-      ),
-      // Bottom Navigation Bar
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.grey[100],
-          boxShadow: [
-            BoxShadow(
-          color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, -2),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildNavItem(Icons.home, 'Home', 0, true),
-                _buildNavItem(Icons.chat_bubble_outline, 'Chat', 1, false),
-                _buildNavItem(Icons.article_outlined, 'News', 2, false),
-                _buildNavItem(Icons.person_outline, 'Profile', 3, false),
+          bottomNavigationBar: Container(
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, -2),
+                ),
               ],
             ),
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildNavItem(Icons.home, 'Home', 0, true),
+                    _buildNavItem(Icons.chat_bubble_outline, 'Chat', 1, false),
+                    _buildNavItem(Icons.article_outlined, 'News', 2, false),
+                    _buildNavItem(
+                      Icons.center_focus_strong_outlined,
+                      'Focus',
+                      3,
+                      false,
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-        ),
-      ),
+          floatingActionButton: Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: FloatingActionButton(
+              onPressed: () {
+                // Show menu if there are available seats OR user is seated
+                // The _isSeated variable is now freshly updated from the stream builder loop above
+                if (_hasAvailableSeats() || _isSeated) {
+                  _showFabMenu();
+                }
+              },
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              child: Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: orangeColor,
+                ),
+                child: const Icon(Icons.add, color: Colors.white),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -451,8 +552,15 @@ class _HomeScreenState extends State<HomeScreen> {
     } else if (isReserved) {
       // Reserved by user - show profile pic with countdown timer
       final isUserReserved =
-          _reservedSpotIndex == spotIndex && _reservedSeatIndex == seatIndex;
-      if (isUserReserved && _reservationStartTime != null) {
+          (_reservedSpotIndex == spotIndex &&
+              _reservedSeatIndex == seatIndex) ||
+          studySpots[spotIndex][seatIndex] ==
+              'reserved_by_me'; // Special flag if needed, but indices should suffice since we update them in build
+
+      // Ensure we treat it as user reserved if the indices match
+      final effectivelyUserReserved = isUserReserved;
+
+      if (effectivelyUserReserved && _reservationStartTime != null) {
         final now = DateTime.now();
         final elapsed = now.difference(_reservationStartTime!);
         final remaining = const Duration(minutes: 30) - elapsed;
@@ -602,40 +710,47 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _reserveSeat(int spotIndex, int seatIndex) {
+    // 1. Optimistic Update
     setState(() {
       studySpots[spotIndex][seatIndex] = 'reserved';
       occupiedSpots++;
-      _isSeated = true; // Mark user as seated
+      _isSeated = true;
       _reservedSpotIndex = spotIndex;
       _reservedSeatIndex = seatIndex;
+      _reservationStatus = 'reserved';
       _reservationStartTime = DateTime.now();
 
-      // If user was in queue and reserved a seat, remove from queue
       if (queueNumber != null) {
         queueNumber = null;
         totalQueueSize = totalQueueSize > 0 ? totalQueueSize - 1 : 0;
       }
     });
 
-    // Start 30-minute timer
+    // 2. Firestore Update (Source of Truth)
+    // We store a rich object now
+    _updateSeatStatusFirestore(spotIndex, seatIndex, {
+      'status': 'reserved',
+      'userId': FirebaseAuth.instance.currentUser?.uid,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+
+    // 3. Start Timer
+    _startReservationTimer();
+  }
+
+  void _startReservationTimer() {
     _reservationTimer?.cancel();
+
+    // Timer to release seat after 30 mins
+    // Note: This relies on local time. Ideally, Cloud Functions would handle this.
     _reservationTimer = Timer(const Duration(minutes: 30), () {
       if (mounted) {
-        // Timer expired - release the seat
-        setState(() {
-          if (_reservedSpotIndex != null && _reservedSeatIndex != null) {
-            studySpots[_reservedSpotIndex!][_reservedSeatIndex!] = null;
-            occupiedSpots = occupiedSpots > 0 ? occupiedSpots - 1 : 0;
-          }
-          _isSeated = false;
-          _reservedSpotIndex = null;
-          _reservedSeatIndex = null;
-          _reservationStartTime = null;
-        });
+        // Release!
+        _leaveSeat();
       }
     });
 
-    // Update UI every second for countdown
+    // UI Tick Timer
     Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted || !_isSeated || _reservationStartTime == null) {
         timer.cancel();
@@ -643,10 +758,10 @@ class _HomeScreenState extends State<HomeScreen> {
       }
       final elapsed = DateTime.now().difference(_reservationStartTime!);
       if (elapsed >= const Duration(minutes: 30)) {
-        timer.cancel();
+        timer.cancel(); // limit reached
         return;
       }
-      setState(() {}); // Trigger rebuild for countdown
+      setState(() {});
     });
   }
 
@@ -689,11 +804,14 @@ class _HomeScreenState extends State<HomeScreen> {
       items: [
         PopupMenuItem(
           padding: EdgeInsets.zero,
-          enabled: !_isSeated, // Disable when seated
+          enabled:
+              !_isSeated || (_isSeated && _reservationStatus == 'reserved'),
           child: Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: !_isSeated
+              onTap:
+                  (!_isSeated ||
+                      (_isSeated && _reservationStatus == 'reserved'))
                   ? () {
                       Navigator.of(context).pop();
                       _openQRScanner();
@@ -713,7 +831,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     Icon(
                       Icons.qr_code_scanner,
-                      color: !_isSeated ? Colors.grey[800] : Colors.grey[400],
+                      color: (!_isSeated || _reservationStatus == 'reserved')
+                          ? Colors.grey[800]
+                          : Colors.grey[400],
                       size: 24,
                     ),
                     const SizedBox(width: 12),
@@ -722,7 +842,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       style: GoogleFonts.inter(
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
-                        color: !_isSeated ? Colors.black : Colors.grey[400],
+                        color: (!_isSeated || _reservationStatus == 'reserved')
+                            ? Colors.black
+                            : Colors.grey[400],
                       ),
                     ),
                   ],
@@ -733,11 +855,13 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         PopupMenuItem(
           padding: EdgeInsets.zero,
-          enabled: _isSeated, // Enable when seated
+          enabled:
+              _isSeated &&
+              _reservationStatus == 'occupied', // Only enabled if occupied
           child: Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: _isSeated
+              onTap: (_isSeated && _reservationStatus == 'occupied')
                   ? () {
                       Navigator.of(context).pop();
                       _showLeaveDialog();
@@ -757,7 +881,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     Icon(
                       Icons.logout,
-                      color: _isSeated ? Colors.grey[800] : Colors.grey[400],
+                      color: (_isSeated && _reservationStatus == 'occupied')
+                          ? Colors.grey[800]
+                          : Colors.grey[400],
                       size: 24,
                     ),
                     const SizedBox(width: 12),
@@ -766,7 +892,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       style: GoogleFonts.inter(
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
-                        color: _isSeated ? Colors.black : Colors.grey[400],
+                        color: (_isSeated && _reservationStatus == 'occupied')
+                            ? Colors.black
+                            : Colors.grey[400],
                       ),
                     ),
                   ],
@@ -847,27 +975,30 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _leaveSeat() {
+  Future<void> _leaveSeat() async {
     // Cancel reservation timer
     _reservationTimer?.cancel();
 
     // Find and remove reserved seat
     if (_reservedSpotIndex != null && _reservedSeatIndex != null) {
-      setState(() {
-        studySpots[_reservedSpotIndex!][_reservedSeatIndex!] = null;
-        occupiedSpots = occupiedSpots > 0 ? occupiedSpots - 1 : 0;
-        _isSeated = false;
-        _reservedSpotIndex = null;
-        _reservedSeatIndex = null;
-        _reservationStartTime = null;
-      });
-
-      // Update Firestore
-      _updateSeatStatusFirestore(
+      // Update Firestore to explicit null
+      await _updateSeatStatusFirestore(
         _reservedSpotIndex!,
         _reservedSeatIndex!,
         null,
       );
+
+      if (mounted) {
+        setState(() {
+          studySpots[_reservedSpotIndex!][_reservedSeatIndex!] = null;
+          occupiedSpots = occupiedSpots > 0 ? occupiedSpots - 1 : 0;
+          _isSeated = false;
+          _reservedSpotIndex = null;
+          _reservedSeatIndex = null;
+          _reservationStatus = null;
+          _reservationStartTime = null;
+        });
+      }
     }
   }
 
@@ -958,11 +1089,35 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) Navigator.of(context).pop();
 
     if (isTaken) {
-      _showSeatTakenDialog();
+      // Check if it's taken BY US (Reserved -> Occupied)
+      // We can optimize this by checking local state _isSeated / _reservedSpotIndex
+      if (_isSeated &&
+          _reservedSpotIndex == spotIndex &&
+          _reservedSeatIndex == seatIndex) {
+        // It's our reservation! Upgrade to occupied code.
+        _confirmSeatOccupancy(spotIndex, seatIndex);
+
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (_) => AlertDialog(
+              backgroundColor: beigeColor,
+              title: const Text("Success"),
+              content: const Text("You have confirmed your seat!"),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("OK"),
+                ),
+              ],
+            ),
+          );
+        }
+      } else {
+        _showSeatTakenDialog();
+      }
     } else {
-      // Also check local state just in case, though Firestore is authority
-      // For this demo, we assume if Firestore says free, we can try to take it.
-      // We will confirm locally.
+      // Free seat - confirm occupancy
       _showSeatFreeDialog(spotIndex, seatIndex);
     }
   }
@@ -983,16 +1138,15 @@ class _HomeScreenState extends State<HomeScreen> {
         if (data != null && data['seats'] != null) {
           final seats = data['seats'] as Map<String, dynamic>;
           final seatLetter = ['A', 'B', 'C', 'D'][seatIndex];
-          // If the key exists and is not null, it's taken
-          return seats[seatLetter] != null;
+          if (seats.containsKey(seatLetter)) {
+            final val = seats[seatLetter];
+            return val != null; // taken if not null
+          }
         }
       }
-      return false; // Document doesn't exist or seat not listed -> Free
+      return false;
     } catch (e) {
       print('Firestore error: $e');
-      // If error, fail safe to "taken" or handle gracefully.
-      // For now, let's assume if we can't check, we shouldn't allow reservation?
-      // Or allow it and sync later. Let's return false (free) to not block user in demo.
       return false;
     }
   }
@@ -1136,10 +1290,19 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _confirmSeatOccupancy(int spotIndex, int seatIndex) {
-    // If user had a reserved seat, release it
-    if (_isSeated && _reservedSpotIndex != null && _reservedSeatIndex != null) {
-      studySpots[_reservedSpotIndex!][_reservedSeatIndex!] = null;
-      _reservationTimer?.cancel();
+    // If user confirmed a DIFFERENT seat than reserved, we must clear the old "reserved" seat
+    if (_reservedSpotIndex != null && _reservedSeatIndex != null) {
+      // If indices are different, free the old one
+      if (_reservedSpotIndex != spotIndex || _reservedSeatIndex != seatIndex) {
+        _updateSeatStatusFirestore(
+          _reservedSpotIndex!,
+          _reservedSeatIndex!,
+          null,
+        );
+        setState(() {
+          studySpots[_reservedSpotIndex!][_reservedSeatIndex!] = null;
+        });
+      }
     }
 
     setState(() {
@@ -1151,14 +1314,19 @@ class _HomeScreenState extends State<HomeScreen> {
       _isSeated = true;
       _reservedSpotIndex = spotIndex;
       _reservedSeatIndex = seatIndex;
+      _reservationStatus = 'occupied';
       _reservationStartTime = DateTime.now();
     });
 
-    // Update Firestore
-    _updateSeatStatusFirestore(spotIndex, seatIndex, 'occupied');
+    // Update Firestore for NEW seat
+    _updateSeatStatusFirestore(spotIndex, seatIndex, {
+      'status': 'occupied', // Final status
+      'userId': FirebaseAuth.instance.currentUser?.uid,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
 
     // Start 30-minute timer for the new seat
-    _reservationTimer?.cancel();
+    _startReservationTimer();
     _reservationTimer = Timer(const Duration(minutes: 30), () {
       if (mounted) {
         setState(() {
@@ -1192,7 +1360,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _updateSeatStatusFirestore(
     int spotIndex,
     int seatIndex,
-    String? status,
+    dynamic status, // Accepts String or Map
   ) async {
     try {
       final docId = 'spot_${spotIndex + 1}';
