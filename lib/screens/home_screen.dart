@@ -5,8 +5,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'qr_scan_screen.dart';
 import 'welcome_screen.dart';
+import 'profile_screen.dart';
 
 // Seat states: null = empty, true = occupied, 'reserved' = reserved by user
+// NOW: We will use a Map {'status': 'occupied'/'reserved', 'userId': 'xyz'} to store detailed info
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -19,13 +21,15 @@ class _HomeScreenState extends State<HomeScreen> {
   int occupiedSpots = 38;
   int totalSpots = 60;
   int? queueNumber; // null = not in queue, number = position in queue
-  int totalQueueSize = 0; // Total people in queue
+  // int totalQueueSize = 0; // Derived from Firestore now
   bool _isSeated = false; // Track if user has reserved a seat
   DateTime? _reservationStartTime; // When user reserved the seat
   int? _reservedSpotIndex; // Which spot user reserved
   int? _reservedSeatIndex; // Which seat user reserved
   String? _reservationStatus; // 'reserved' or 'occupied'
   Timer? _reservationTimer; // Timer for 30-minute reservation
+  bool _isProcessingReservation =
+      false; // Lock to prevent multiple auto-reservations
 
   // Color constants
   static const Color orangeColor = Color(0xFFFF7B00);
@@ -33,95 +37,65 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Sample data for study spots (15 spots, each with 4 seats)
   // null = empty, true = occupied, 'reserved' = reserved by user
-  List<List<dynamic>> studySpots = [
-    [true, true, true, null], // Spot 1 - 3 occupied
-    [true, true, true, null], // Spot 2 - 3 occupied
-    [true, null, null, null], // Spot 3 - 1 occupied
-    [null, null, true, true], // Spot 4 - 2 occupied
-    [true, true, true, true], // Spot 5 - 4 occupied
-    [true, true, true, true], // Spot 6 - 4 occupied
-    [true, null, true, null], // Spot 7 - 2 occupied
-    [null, null, null, null], // Spot 8 - 0 occupied
-    [null, null, true, true], // Spot 9 - 2 occupied
-    [true, true, true, null], // Spot 10 - 3 occupied
-    [true, true, true, true], // Spot 11 - 4 occupied
-    [null, true, null, true], // Spot 12 - 2 occupied
-    [true, true, true, true], // Spot 13 - 4 occupied
-    [null, null, true, true], // Spot 14 - 2 occupied
-    [true, null, true, null], // Spot 15 - 2 occupied
-    // Total: 3+3+1+2+4+4+2+0+2+3+4+2+4+2+2 = 38 occupied
-  ];
-
-  Timer? _queueTimer;
+  List<List<dynamic>> studySpots = List.generate(
+    15,
+    (_) => List.filled(4, null),
+  );
 
   @override
   void initState() {
     super.initState();
-    _startQueueTimer();
+    // No more local queue timer, we listen to Firestore
   }
 
   @override
   void dispose() {
-    _queueTimer?.cancel();
     _reservationTimer?.cancel();
     super.dispose();
   }
 
-  void _startQueueTimer() {
-    _queueTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
-      if (queueNumber != null &&
-          queueNumber! > 1 &&
-          occupiedSpots == totalSpots) {
-        // Simulate someone ahead in queue getting a seat
-        setState(() {
-          queueNumber = queueNumber! - 1;
-        });
-      }
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
+    final currentUser = FirebaseAuth.instance.currentUser;
+
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('study_spots').snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
+      builder: (context, spotsSnapshot) {
+        if (spotsSnapshot.hasError) {
+          // ... error handling
           return const Scaffold(
-            backgroundColor: Colors.white,
             body: Center(child: Text("Error loading spots")),
           );
         }
-
-        if (!snapshot.hasData) {
+        if (!spotsSnapshot.hasData) {
           return const Scaffold(
-            backgroundColor: Colors.white,
             body: Center(child: CircularProgressIndicator()),
           );
         }
 
-        final docs = snapshot.data!.docs;
-
-        // Initialize dummy data if empty
-        if (docs.isEmpty) {
+        final spotDocs = spotsSnapshot.data!.docs;
+        if (spotDocs.isEmpty) {
           _initializeDummyData();
           return const Scaffold(
-            backgroundColor: Colors.white,
             body: Center(child: CircularProgressIndicator()),
           );
         }
 
-        // Parse Firestore data
+        // --- 1. Parse Study Spots & Calculate Occupancy ---
         int currentOccupied = 0;
         Map<int, List<dynamic>> tempSpots = {};
 
-        // Local tracking for this frame
         bool frameIsSeated = false;
         String? frameReservationStatus;
         int? frameReservedSpotIndex;
         int? frameReservedSeatIndex;
         DateTime? frameReservationTimestamp;
 
-        for (var doc in docs) {
+        // For Queue Auto-Assign: Find first available seat
+        int? firstFreeSpotIndex;
+        int? firstFreeSeatIndex;
+
+        for (var doc in spotDocs) {
           final header = doc.id;
           if (header.startsWith('spot_')) {
             final index = int.tryParse(header.split('_')[1]) ?? 0;
@@ -132,52 +106,80 @@ class _HomeScreenState extends State<HomeScreen> {
 
               final List<dynamic> seatList = List.generate(4, (i) {
                 final letter = ['A', 'B', 'C', 'D'][i];
+                dynamic seatVal;
+
                 if (seatsMap.containsKey(letter)) {
                   final seatData = seatsMap[letter];
 
-                  // Handle legacy string data ('occupied'/'reserved')
+                  // Helper to check standard occupancy
+                  bool isTaken = false;
+
                   if (seatData is String) {
+                    // Legacy string support
                     if (seatData == 'occupied' || seatData == 'reserved') {
                       currentOccupied++;
-                      return seatData == 'reserved' ? 'reserved' : true;
+                      isTaken = true;
+                      // Cannot navigate to profile if legacy string (no userId)
+                      seatVal = {'status': seatData, 'userId': null};
                     }
-                    return null;
-                  }
-                  // Handle new map object data
-                  else if (seatData is Map<String, dynamic>) {
+                  } else if (seatData is Map<String, dynamic>) {
                     final status = seatData['status'];
                     final userId = seatData['userId'];
                     final timestamp = seatData['timestamp'] as Timestamp?;
 
-                    // Check if this reservation belongs to current user
-                    if (userId == FirebaseAuth.instance.currentUser?.uid) {
-                      frameIsSeated = true;
-                      frameReservationStatus = status;
-                      frameReservedSpotIndex = spotIndex;
-                      frameReservedSeatIndex = i;
-                      if (timestamp != null) {
-                        frameReservationTimestamp = timestamp.toDate();
+                    // Check for expiration (30 mins)
+                    bool isExpired = false;
+                    if (status == 'reserved' && timestamp != null) {
+                      final diff = DateTime.now().difference(
+                        timestamp.toDate(),
+                      );
+                      if (diff.inMinutes >= 30) {
+                        isExpired = true;
                       }
                     }
 
-                    if (status == 'occupied') {
-                      currentOccupied++;
-                      return true;
-                    } else if (status == 'reserved') {
-                      currentOccupied++;
-                      return 'reserved';
+                    if (!isExpired) {
+                      if (userId == currentUser?.uid) {
+                        frameIsSeated = true;
+                        frameReservationStatus = status;
+                        frameReservedSpotIndex = spotIndex;
+                        frameReservedSeatIndex = i;
+                        if (timestamp != null)
+                          frameReservationTimestamp = timestamp.toDate();
+                      }
+
+                      if (status == 'occupied' || status == 'reserved') {
+                        currentOccupied++;
+                        isTaken = true;
+                        seatVal = {'status': status, 'userId': userId};
+                      }
                     }
+                    // If isExpired is true, we treat it as free (seatVal remains null/default, isTaken remains false)
+                  }
+
+                  if (!isTaken) {
+                    // Found a free seat, record if it's the first one we see
+                    if (firstFreeSpotIndex == null) {
+                      firstFreeSpotIndex = spotIndex;
+                      firstFreeSeatIndex = i;
+                    }
+                  }
+                  return seatVal;
+                } else {
+                  // Seat key missing -> Free
+                  if (firstFreeSpotIndex == null) {
+                    firstFreeSpotIndex = spotIndex;
+                    firstFreeSeatIndex = i;
                   }
                   return null;
                 }
-                return null;
               });
               tempSpots[spotIndex] = seatList;
             }
           }
         }
 
-        // Sync Local State if Stream differs (Source of Truth)
+        // --- 2. Sync Local State (Seated/Timer) ---
         if (frameIsSeated) {
           _isSeated = true;
           _reservationStatus = frameReservationStatus;
@@ -186,12 +188,10 @@ class _HomeScreenState extends State<HomeScreen> {
           if (frameReservationTimestamp != null) {
             _reservationStartTime = frameReservationTimestamp;
           }
-          // Ensure timer is running if we are seated
           if (_reservationTimer == null || !_reservationTimer!.isActive) {
             Future.microtask(() => _startReservationTimer());
           }
         } else if (_isSeated && !frameIsSeated) {
-          // We thought we were seated, but Firestore says no.
           _isSeated = false;
           _reservationStatus = null;
           _reservedSpotIndex = null;
@@ -205,285 +205,525 @@ class _HomeScreenState extends State<HomeScreen> {
           (i) => tempSpots[i] ?? [null, null, null, null],
         );
         occupiedSpots = currentOccupied;
-
         final progress = occupiedSpots / totalSpots;
 
-        return Scaffold(
-          backgroundColor: Colors.white,
-          body: SafeArea(
-            child: Column(
-              children: [
-                // Header Section
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 16,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // App Name with colored "Spot"
-                      RichText(
-                        text: TextSpan(
-                          style: GoogleFonts.inter(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black,
-                          ),
-                          children: [
-                            const TextSpan(text: 'Study'),
-                            TextSpan(
-                              text: 'Spot',
+        // --- 3. Queue Stream Builder ---
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('queue')
+              .orderBy('timestamp')
+              .snapshots(),
+          builder: (context, queueSnapshot) {
+            // Default Queue State
+            int? myQueuePosition;
+            // int totalInQueue = 0; // Not strictly needed for UI unless we show queue size
+
+            if (queueSnapshot.hasData) {
+              final queueDocs = queueSnapshot.data!.docs;
+              // totalInQueue = queueDocs.length;
+
+              // Find my position (1-based)
+              for (int i = 0; i < queueDocs.length; i++) {
+                final data = queueDocs[i].data() as Map<String, dynamic>;
+                if (data['userId'] == currentUser?.uid) {
+                  myQueuePosition = i + 1;
+                  break;
+                }
+              }
+            }
+
+            // --- 4. Auto-Reserve Logic ---
+            // If I am #1 in queue AND there is a free seat
+            if (myQueuePosition == 1 &&
+                firstFreeSpotIndex != null &&
+                firstFreeSeatIndex != null &&
+                !_isSeated &&
+                !_isProcessingReservation) {
+              // Trigger reservation logic
+              Future.microtask(() {
+                if (mounted && !_isProcessingReservation && !_isSeated) {
+                  _processQueueReservation(
+                    firstFreeSpotIndex!,
+                    firstFreeSeatIndex!,
+                    currentUser?.uid,
+                  );
+                }
+              });
+            }
+
+            return Scaffold(
+              backgroundColor: Colors.white,
+              body: SafeArea(
+                child: Column(
+                  children: [
+                    // Header Section
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 16,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // App Name with colored "Spot"
+                          RichText(
+                            text: TextSpan(
                               style: GoogleFonts.inter(
                                 fontSize: 28,
                                 fontWeight: FontWeight.bold,
-                                color: orangeColor,
+                                color: Colors.black,
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      // Profile Picture
-                      PopupMenuButton<String>(
-                        onSelected: (value) {
-                          if (value == 'logout') {
-                            FirebaseAuth.instance.signOut().then((_) {
-                              Navigator.of(context).pushAndRemoveUntil(
-                                MaterialPageRoute(
-                                  builder: (context) => const WelcomeWrapper(),
+                              children: [
+                                const TextSpan(text: 'Study'),
+                                TextSpan(
+                                  text: 'Spot',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.bold,
+                                    color: orangeColor,
+                                  ),
                                 ),
-                                (route) => false,
-                              );
-                            });
-                          }
-                        },
-                        itemBuilder: (BuildContext context) =>
-                            <PopupMenuEntry<String>>[
-                              PopupMenuItem<String>(
-                                value: 'logout',
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.logout,
-                                      color: Colors.red[400],
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Text(
-                                      'Sign Out',
-                                      style: GoogleFonts.inter(
-                                        color: Colors.red[400],
-                                        fontWeight: FontWeight.w500,
+                              ],
+                            ),
+                          ),
+                          // Profile Picture
+                          PopupMenuButton<String>(
+                            onSelected: (value) {
+                              if (value == 'profile') {
+                                if (currentUser != null) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => ProfileScreen(
+                                        userId: currentUser.uid,
+                                        isCurrentUser: true,
                                       ),
                                     ),
-                                  ],
+                                  );
+                                }
+                              } else if (value == 'logout') {
+                                FirebaseAuth.instance.signOut().then((_) {
+                                  Navigator.of(context).pushAndRemoveUntil(
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const WelcomeWrapper(),
+                                    ),
+                                    (route) => false,
+                                  );
+                                });
+                              } else if (value == 'reset_data') {
+                                _initializeDummyData(); // Force reset
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      "Resetting to 56/60 seats...",
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                            itemBuilder: (BuildContext context) =>
+                                <PopupMenuEntry<String>>[
+                                  PopupMenuItem<String>(
+                                    value: 'profile',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.person,
+                                          color: Colors.black87,
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Text(
+                                          'View Profile',
+                                          style: GoogleFonts.inter(
+                                            color: Colors.black87,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  PopupMenuItem<String>(
+                                    value: 'logout',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.logout,
+                                          color: Colors.red[400],
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Text(
+                                          'Sign Out',
+                                          style: GoogleFonts.inter(
+                                            color: Colors.red[400],
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  // Debug Option for Testing
+                                  PopupMenuItem<String>(
+                                    value: 'reset_data',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.refresh,
+                                          color: Colors.blue,
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Text(
+                                          'Reset Data (Test)',
+                                          style: GoogleFonts.inter(
+                                            color: Colors.blue,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                            child: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.grey[300],
+                                border: Border.all(
+                                  color: Colors.grey[400]!,
+                                  width: 1,
                                 ),
                               ),
-                            ],
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.grey[300],
-                            border: Border.all(
-                              color: Colors.grey[400]!,
-                              width: 1,
+                              child: Icon(
+                                Icons.person,
+                                color: Colors.grey[600],
+                                size: 24,
+                              ),
                             ),
                           ),
-                          child: Icon(
-                            Icons.person,
-                            color: Colors.grey[600],
-                            size: 24,
-                          ),
-                        ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
+                    ),
 
-                // Progress and Count Section
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
-                  child: Row(
-                    children: [
-                      // Circular Progress Indicator
-                      SizedBox(
-                        width: 60,
-                        height: 60,
-                        child: Stack(
-                          children: [
-                            // Background circle
-                            CircularProgressIndicator(
-                              value: 1.0,
-                              strokeWidth: 6,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                beigeColor,
-                              ),
-                              backgroundColor: Colors.transparent,
-                            ),
-                            // Progress arc
-                            CircularProgressIndicator(
-                              value: progress,
-                              strokeWidth: 6,
-                              valueColor: const AlwaysStoppedAnimation<Color>(
-                                orangeColor,
-                              ),
-                              backgroundColor: Colors.transparent,
-                            ),
-                          ],
-                        ),
+                    // Progress and Count Section
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
                       ),
-                      const SizedBox(width: 16),
-                      // Count Text
-                      Text(
-                        '$occupiedSpots/$totalSpots',
-                        style: GoogleFonts.inter(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
-                      ),
-                      const Spacer(),
-                      // Queue or Enqueue Button
-                      if (occupiedSpots == totalSpots)
-                        queueNumber != null
-                            ? Text(
-                                'Queue No.: $queueNumber',
-                                style: GoogleFonts.inter(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.black,
-                                ),
-                              )
-                            : ElevatedButton(
-                                onPressed: _enqueueUser,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: orangeColor,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
+                      child: Row(
+                        children: [
+                          // Circular Progress Indicator
+                          SizedBox(
+                            width: 60,
+                            height: 60,
+                            child: Stack(
+                              children: [
+                                // Background circle
+                                CircularProgressIndicator(
+                                  value: 1.0,
+                                  strokeWidth: 6,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    beigeColor,
                                   ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
+                                  backgroundColor: Colors.transparent,
                                 ),
-                                child: Text(
-                                  'Scan to Enqueue',
+                                // Progress arc
+                                CircularProgressIndicator(
+                                  value: progress,
+                                  strokeWidth: 6,
+                                  valueColor:
+                                      const AlwaysStoppedAnimation<Color>(
+                                        orangeColor,
+                                      ),
+                                  backgroundColor: Colors.transparent,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          // Count Text
+                          Text(
+                            '$occupiedSpots/$totalSpots',
+                            style: GoogleFonts.inter(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
+                          ),
+                          const Spacer(),
+
+                          // OLD QUEUE UI REPLACED WITH NEW LOGIC
+                          // Logic:
+                          // 1. If user is in queue -> Show "Queue No.: X" (Orange text)
+                          // 2. Else IF full (60/60) -> Show "Scan to Enqueue" Button
+                          // 3. Else -> Empty (or "Scan to Enqueue" only visible when full)
+                          Builder(
+                            builder: (context) {
+                              if (myQueuePosition != null) {
+                                return Text(
+                                  'Queue No.: $myQueuePosition',
                                   style: GoogleFonts.inter(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight
+                                        .bold, // Bold to match screenshot
+                                    color:
+                                        orangeColor, // Orange color as per screenshot usually (or black if unspecified, but orange looks standard)
                                   ),
-                                ),
-                              ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 8),
-
-                // Study Spots Grid
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-                    child: GridView.builder(
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                            childAspectRatio: 0.85,
+                                );
+                              } else if (occupiedSpots == totalSpots &&
+                                  !_isSeated) {
+                                // Hide if seated
+                                return ElevatedButton(
+                                  onPressed: _enqueueUser,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: orangeColor,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 12,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(
+                                        20,
+                                      ), // More rounded
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'Scan to Enqueue',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            },
                           ),
-                      itemCount: studySpots.length,
-                      padding: const EdgeInsets.only(bottom: 100),
-                      itemBuilder: (context, index) {
-                        return _buildStudySpotCard(
-                          index + 1,
-                          studySpots[index],
-                        );
-                      },
+                        ],
+                      ),
                     ),
-                  ),
-                ),
 
-                const SizedBox(height: 8),
-              ],
-            ),
-          ),
-          bottomNavigationBar: Container(
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, -2),
-                ),
-              ],
-            ),
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildNavItem(Icons.home, 'Home', 0, true),
-                    _buildNavItem(Icons.chat_bubble_outline, 'Chat', 1, false),
-                    _buildNavItem(Icons.article_outlined, 'News', 2, false),
-                    _buildNavItem(
-                      Icons.center_focus_strong_outlined,
-                      'Focus',
-                      3,
-                      false,
+                    const SizedBox(height: 8),
+
+                    // Study Spots Grid
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                        child: GridView.builder(
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 3,
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 12,
+                                childAspectRatio: 0.85,
+                              ),
+                          itemCount: studySpots.length,
+                          padding: const EdgeInsets.only(bottom: 100),
+                          itemBuilder: (context, index) {
+                            return _buildStudySpotCard(
+                              index + 1,
+                              studySpots[index],
+                            );
+                          },
+                        ),
+                      ),
                     ),
+
+                    const SizedBox(height: 8),
                   ],
                 ),
               ),
-            ),
-          ),
-          floatingActionButton: Container(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+              bottomNavigationBar: Container(
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, -2),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            child: FloatingActionButton(
-              onPressed: () {
-                // Show menu if there are available seats OR user is seated
-                // The _isSeated variable is now freshly updated from the stream builder loop above
-                if (_hasAvailableSeats() || _isSeated) {
-                  _showFabMenu();
-                }
-              },
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              child: Container(
-                width: 56,
-                height: 56,
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildNavItem(Icons.home, 'Home', 0, true),
+                        _buildNavItem(
+                          Icons.chat_bubble_outline,
+                          'Chat',
+                          1,
+                          false,
+                        ),
+                        _buildNavItem(Icons.article_outlined, 'News', 2, false),
+                        _buildNavItem(
+                          Icons.center_focus_strong_outlined,
+                          'Focus',
+                          3,
+                          false,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              floatingActionButton: Container(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: orangeColor,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
-                child: const Icon(Icons.add, color: Colors.white),
+                child: FloatingActionButton(
+                  onPressed: () {
+                    // Show menu if there are available seats OR user is seated
+                    if (_hasAvailableSeats() || _isSeated) {
+                      _showFabMenu();
+                    }
+                  },
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  child: Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: orangeColor,
+                    ),
+                    child: const Icon(Icons.add, color: Colors.white),
+                  ),
+                ),
               ),
-            ),
-          ),
+            );
+          }, // end queue builder
         );
       },
     );
   }
 
+  // ... (rest of the file: _buildStudySpotCard, _buildSeat, _showReserveMenu, _showUnreserveMenu)
+
+  // --- Logic Methods ---
+
+  Future<void> _enqueueUser() async {
+    // Just add to queue collection
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      // Use user Uid as doc id to prevent duplicates
+      await FirebaseFirestore.instance.collection('queue').doc(user.uid).set({
+        'userId': user.uid,
+        'timestamp': FieldValue.serverTimestamp(),
+        'status': 'waiting',
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Error joining queue: $e")));
+    }
+  }
+
+  Future<void> _processQueueReservation(
+    int spotIndex,
+    int seatIndex,
+    String? userId,
+  ) async {
+    if (userId == null) return;
+
+    // 0. Set Lock & Optimistic UI Update
+    // We set _isSeated true immediately to block other reservations locally
+    // We also set processing to true
+    setState(() {
+      _isProcessingReservation = true;
+      // Optimistic Reservation
+      if (spotIndex < studySpots.length && seatIndex < 4) {
+        studySpots[spotIndex][seatIndex] = 'reserved';
+      }
+      _isSeated = true; // Block UI locally
+      _reservedSpotIndex = spotIndex;
+      _reservedSeatIndex = seatIndex;
+      _reservationStatus = 'reserved';
+      queueNumber = null; // Clear queue locally
+    });
+
+    try {
+      // 1. Reserve the seat
+      await _updateSeatStatusFirestore(spotIndex, seatIndex, {
+        'status': 'reserved',
+        'userId': userId,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      // 2. Remove from Queue
+      await FirebaseFirestore.instance.collection('queue').doc(userId).delete();
+
+      // 3. Notify User
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false, // Force them to acknowledge
+          builder: (_) => AlertDialog(
+            backgroundColor: beigeColor,
+            title: Text(
+              "Seat Assigned!",
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+            ),
+            content: Text(
+              "Seat ${spotIndex + 1}${['A', 'B', 'C', 'D'][seatIndex]} is now free and you're entitled to it! It has been reserved for you for 30 minutes.",
+              style: GoogleFonts.inter(),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  // Reset lock
+                  if (mounted) {
+                    setState(() {
+                      _isProcessingReservation = false;
+                    });
+                  }
+                },
+                child: Text(
+                  "Awesome!",
+                  style: GoogleFonts.inter(
+                    color: orangeColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      print("Error processing queue reservation: $e");
+      // Revert lock if failed
+      if (mounted) {
+        setState(() {
+          _isProcessingReservation = false;
+          _isSeated = false; // Revert
+          if (spotIndex < studySpots.length && seatIndex < 4) {
+            studySpots[spotIndex][seatIndex] = null; // Revert
+          }
+        });
+      }
+    }
+  }
+
   Widget _buildStudySpotCard(int spotNumber, List<dynamic> seats) {
-    final spotIndex = spotNumber - 1; // Convert back to 0-based index
+    final spotIndex = spotNumber - 1;
     return Stack(
       children: [
         Container(
@@ -513,7 +753,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ),
-        // Table number at lower center
         Positioned(
           bottom: 4,
           left: 0,
@@ -534,9 +773,31 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildSeat(int spotIndex, int seatIndex, dynamic seatState) {
-    final isOccupied = seatState == true;
-    final isEmpty = seatState == null;
-    final isReserved = seatState == 'reserved';
+    bool isOccupied = false;
+    bool isReserved = false;
+    String? seatedUserId;
+
+    if (seatState == true) {
+      isOccupied = true;
+    } else if (seatState is String) {
+      if (seatState == 'occupied') isOccupied = true;
+      if (seatState == 'reserved' || seatState == 'reserved_by_me')
+        isReserved = true;
+    } else if (seatState is Map) {
+      final status = seatState['status'];
+      seatedUserId = seatState['userId'];
+      if (status == 'occupied') isOccupied = true;
+      if (status == 'reserved') isReserved = true;
+    }
+
+    final isEmpty = !isOccupied && !isReserved;
+
+    // Check if it's the current user
+    final isUserReserved =
+        (_reservedSpotIndex == spotIndex && _reservedSeatIndex == seatIndex) ||
+        (seatState is String && seatState == 'reserved_by_me') ||
+        (seatedUserId != null &&
+            seatedUserId == FirebaseAuth.instance.currentUser?.uid);
 
     Widget seatWidget;
     if (isOccupied) {
@@ -550,17 +811,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: const Icon(Icons.person, color: Colors.white, size: 16),
       );
     } else if (isReserved) {
-      // Reserved by user - show profile pic with countdown timer
-      final isUserReserved =
-          (_reservedSpotIndex == spotIndex &&
-              _reservedSeatIndex == seatIndex) ||
-          studySpots[spotIndex][seatIndex] ==
-              'reserved_by_me'; // Special flag if needed, but indices should suffice since we update them in build
-
-      // Ensure we treat it as user reserved if the indices match
-      final effectivelyUserReserved = isUserReserved;
-
-      if (effectivelyUserReserved && _reservationStartTime != null) {
+      if (isUserReserved && _reservationStartTime != null) {
         final now = DateTime.now();
         final elapsed = now.difference(_reservationStartTime!);
         final remaining = const Duration(minutes: 30) - elapsed;
@@ -572,7 +823,6 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Stack(
             alignment: Alignment.center,
             children: [
-              // Red progress circle
               SizedBox(
                 width: 32,
                 height: 32,
@@ -583,7 +833,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   backgroundColor: Colors.red.withOpacity(0.2),
                 ),
               ),
-              // Profile picture
               Container(
                 width: 24,
                 height: 24,
@@ -607,40 +856,50 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } else {
       seatWidget = Container(
-        width: 20,
-        height: 20,
+        width: 24,
+        height: 24,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          border: Border.all(
-            color: orangeColor,
-            width: 2,
-            style: BorderStyle.solid,
-          ),
+          color: Colors.grey[200],
+          border: Border.all(color: Colors.grey[300]!),
         ),
       );
     }
 
-    // Only allow interaction if seat is empty AND user is not already seated
-    if (isEmpty && !_isSeated) {
-      return GestureDetector(
-        onTapDown: (TapDownDetails details) => _showReserveMenu(
-          context,
-          details.globalPosition,
-          spotIndex,
-          seatIndex,
-        ),
-        behavior: HitTestBehavior.opaque,
-        child: Center(child: seatWidget),
-      );
-    } else {
-      // Locked state - show with reduced opacity if user is seated and this seat is empty
-      return Center(
-        child: Opacity(
-          opacity: (isEmpty && _isSeated) ? 0.5 : 1.0,
-          child: seatWidget,
-        ),
-      );
-    }
+    return Center(
+      child: GestureDetector(
+        onTapDown: (details) {
+          // Case 1: Empty -> Reserve
+          if (isEmpty) {
+            if (_isSeated) {
+              _showUnreserveMenu(context, details.globalPosition);
+            } else {
+              _showReserveMenu(
+                context,
+                details.globalPosition,
+                spotIndex,
+                seatIndex,
+              );
+            }
+          }
+          // Case 2: Other User -> View Profile
+          else if (!isUserReserved && seatedUserId != null) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    ProfileScreen(userId: seatedUserId!, isCurrentUser: false),
+              ),
+            );
+          }
+          // Case 3: Me -> Unreserve
+          else if (isUserReserved) {
+            _showUnreserveMenu(context, details.globalPosition);
+          }
+        },
+        child: seatWidget,
+      ),
+    );
   }
 
   void _showReserveMenu(
@@ -702,11 +961,58 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _enqueueUser() {
-    setState(() {
-      totalQueueSize++;
-      queueNumber = totalQueueSize;
-    });
+  void _showUnreserveMenu(BuildContext context, Offset position) {
+    final RenderBox overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
+
+    showMenu(
+      context: context,
+      position: RelativeRect.fromRect(
+        Rect.fromLTWH(position.dx, position.dy, 0, 0),
+        Rect.fromLTWH(0, 0, overlay.size.width, overlay.size.height),
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      items: [
+        PopupMenuItem(
+          padding: EdgeInsets.zero,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                Navigator.of(context).pop();
+                _leaveSeat(); // Re-use free logic to unreserve
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.lock_open, color: Colors.black, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Unreserve',
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   void _reserveSeat(int spotIndex, int seatIndex) {
@@ -722,7 +1028,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (queueNumber != null) {
         queueNumber = null;
-        totalQueueSize = totalQueueSize > 0 ? totalQueueSize - 1 : 0;
+        // totalQueueSize = totalQueueSize > 0 ? totalQueueSize - 1 : 0;
       }
     });
 
@@ -740,15 +1046,26 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _startReservationTimer() {
     _reservationTimer?.cancel();
+    if (_reservationStartTime == null) return;
 
-    // Timer to release seat after 30 mins
-    // Note: This relies on local time. Ideally, Cloud Functions would handle this.
-    _reservationTimer = Timer(const Duration(minutes: 30), () {
+    final now = DateTime.now();
+    final expirationTime = _reservationStartTime!.add(
+      const Duration(minutes: 30),
+    );
+    final remaining = expirationTime.difference(now);
+
+    if (remaining.isNegative) {
+      // Already expired
       if (mounted) {
-        // Release!
         _leaveSeat();
       }
-    });
+    } else {
+      _reservationTimer = Timer(remaining, () {
+        if (mounted) {
+          _leaveSeat();
+        }
+      });
+    }
 
     // UI Tick Timer
     Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -976,36 +1293,65 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _leaveSeat() async {
-    // Cancel reservation timer
     _reservationTimer?.cancel();
-
-    // Find and remove reserved seat
     if (_reservedSpotIndex != null && _reservedSeatIndex != null) {
-      // Update Firestore to explicit null
-      await _updateSeatStatusFirestore(
-        _reservedSpotIndex!,
-        _reservedSeatIndex!,
-        null,
-      );
+      final int spotIndex = _reservedSpotIndex!;
+      final int seatIndex = _reservedSeatIndex!;
 
-      if (mounted) {
-        setState(() {
-          studySpots[_reservedSpotIndex!][_reservedSeatIndex!] = null;
-          occupiedSpots = occupiedSpots > 0 ? occupiedSpots - 1 : 0;
-          _isSeated = false;
-          _reservedSpotIndex = null;
-          _reservedSeatIndex = null;
-          _reservationStatus = null;
-          _reservationStartTime = null;
-        });
+      try {
+        // --- Queue Handoff Logic ---
+        // Check if anyone is waiting in the queue
+        final queueSnapshot = await FirebaseFirestore.instance
+            .collection('queue')
+            .orderBy('timestamp')
+            .limit(1)
+            .get();
+
+        if (queueSnapshot.docs.isNotEmpty) {
+          // 1. Found a waiter -> Handoff
+          final nextUserDoc = queueSnapshot.docs.first;
+          final nextUserId = nextUserDoc['userId'] as String;
+
+          // Update seat to Reserved for Next User
+          await _updateSeatStatusFirestore(spotIndex, seatIndex, {
+            'status': 'reserved',
+            'userId': nextUserId,
+            'timestamp': FieldValue.serverTimestamp(),
+          });
+
+          // Remove Next User from Queue
+          await nextUserDoc.reference.delete();
+          print("Seat handed off to queue user: $nextUserId");
+        } else {
+          // 2. Queue Empty -> Make Seat Free
+          await _updateSeatStatusFirestore(spotIndex, seatIndex, null);
+        }
+
+        // Update Local State (I am leaving regardless)
+        if (mounted) {
+          setState(() {
+            _isSeated = false;
+            _reservedSpotIndex = null;
+            _reservedSeatIndex = null;
+            _reservationStatus = null;
+            _reservationStartTime = null;
+            // We rely on the StreamListener to update studySpots and occupiedSpots
+            // to prevent conflicts with the handoff logic (occupied vs free)
+          });
+        }
+      } catch (e) {
+        print("Error leaving seat: $e");
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text("Error leaving seat: $e")));
+        }
       }
     }
   }
 
   // Parse QR code to get spot and seat indices
-  // QR code format: "{tableNumber}{seatLetter}" e.g., "1A", "15D"
   Map<String, int>? _parseQRCode(String qrCode) {
-    // Regex to match 1-15 followed by A-D
     final RegExp regex = RegExp(r'^([1-9]|1[0-5])([A-D])$');
     final match = regex.firstMatch(qrCode);
 
@@ -1052,7 +1398,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _handleQRScan(String qrCode) async {
     final parsed = _parseQRCode(qrCode);
     if (parsed == null) {
-      // Invalid QR code format
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Invalid QR code format. Use e.g. 1A, 15C'),
@@ -1064,7 +1409,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final spotIndex = parsed['spotIndex']!;
     final seatIndex = parsed['seatIndex']!;
 
-    // Validate indices (double check)
     if (spotIndex < 0 ||
         spotIndex >= studySpots.length ||
         seatIndex < 0 ||
@@ -1075,26 +1419,20 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    // Show loading
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => const Center(child: CircularProgressIndicator()),
     );
 
-    // Check Firestore
     final isTaken = await _checkSeatAvailabilityFirestore(spotIndex, seatIndex);
 
-    // Pop loading
     if (mounted) Navigator.of(context).pop();
 
     if (isTaken) {
-      // Check if it's taken BY US (Reserved -> Occupied)
-      // We can optimize this by checking local state _isSeated / _reservedSpotIndex
       if (_isSeated &&
           _reservedSpotIndex == spotIndex &&
           _reservedSeatIndex == seatIndex) {
-        // It's our reservation! Upgrade to occupied code.
         _confirmSeatOccupancy(spotIndex, seatIndex);
 
         if (mounted) {
@@ -1117,7 +1455,6 @@ class _HomeScreenState extends State<HomeScreen> {
         _showSeatTakenDialog();
       }
     } else {
-      // Free seat - confirm occupancy
       _showSeatFreeDialog(spotIndex, seatIndex);
     }
   }
@@ -1140,7 +1477,24 @@ class _HomeScreenState extends State<HomeScreen> {
           final seatLetter = ['A', 'B', 'C', 'D'][seatIndex];
           if (seats.containsKey(seatLetter)) {
             final val = seats[seatLetter];
-            return val != null; // taken if not null
+            if (val == null) return false;
+
+            if (val is Map<String, dynamic>) {
+              final status = val['status'];
+              final timestamp = val['timestamp'] as Timestamp?;
+
+              if (status == 'reserved' && timestamp != null) {
+                final diff = DateTime.now().difference(timestamp.toDate());
+                if (diff.inMinutes >= 30) {
+                  return false; // Expired, so it is free
+                }
+              }
+
+              // If status is null/free in map? (Unlikely schema, but safe fallback)
+              return true; // Occupied or Reserved (and not expired)
+            }
+            // Legacy string
+            return true;
           }
         }
       }
@@ -1246,7 +1600,7 @@ class _HomeScreenState extends State<HomeScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Seat is taken 💦',
+                  'Seat is taken 😓',
                   style: GoogleFonts.inter(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -1290,9 +1644,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _confirmSeatOccupancy(int spotIndex, int seatIndex) {
-    // If user confirmed a DIFFERENT seat than reserved, we must clear the old "reserved" seat
     if (_reservedSpotIndex != null && _reservedSeatIndex != null) {
-      // If indices are different, free the old one
       if (_reservedSpotIndex != spotIndex || _reservedSeatIndex != seatIndex) {
         _updateSeatStatusFirestore(
           _reservedSpotIndex!,
@@ -1306,11 +1658,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     setState(() {
-      // Mark seat as occupied
       studySpots[spotIndex][seatIndex] = true;
       occupiedSpots++;
-
-      // Update user status
       _isSeated = true;
       _reservedSpotIndex = spotIndex;
       _reservedSeatIndex = seatIndex;
@@ -1318,49 +1667,19 @@ class _HomeScreenState extends State<HomeScreen> {
       _reservationStartTime = DateTime.now();
     });
 
-    // Update Firestore for NEW seat
     _updateSeatStatusFirestore(spotIndex, seatIndex, {
-      'status': 'occupied', // Final status
+      'status': 'occupied',
       'userId': FirebaseAuth.instance.currentUser?.uid,
       'timestamp': FieldValue.serverTimestamp(),
     });
 
-    // Start 30-minute timer for the new seat
     _startReservationTimer();
-    _reservationTimer = Timer(const Duration(minutes: 30), () {
-      if (mounted) {
-        setState(() {
-          if (_reservedSpotIndex != null && _reservedSeatIndex != null) {
-            studySpots[_reservedSpotIndex!][_reservedSeatIndex!] = null;
-            occupiedSpots = occupiedSpots > 0 ? occupiedSpots - 1 : 0;
-          }
-          _isSeated = false;
-          _reservedSpotIndex = null;
-          _reservedSeatIndex = null;
-          _reservationStartTime = null;
-        });
-      }
-    });
-
-    // Update UI every second for countdown
-    Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted || !_isSeated || _reservationStartTime == null) {
-        timer.cancel();
-        return;
-      }
-      final elapsed = DateTime.now().difference(_reservationStartTime!);
-      if (elapsed >= const Duration(minutes: 30)) {
-        timer.cancel();
-        return;
-      }
-      setState(() {}); // Trigger rebuild for countdown
-    });
   }
 
   Future<void> _updateSeatStatusFirestore(
     int spotIndex,
     int seatIndex,
-    dynamic status, // Accepts String or Map
+    dynamic status,
   ) async {
     try {
       final docId = 'spot_${spotIndex + 1}';
@@ -1381,24 +1700,34 @@ class _HomeScreenState extends State<HomeScreen> {
     final firestore = FirebaseFirestore.instance;
     final batch = firestore.batch();
 
+    // Specific free seats: 1A (Spot 1, index 0), 5D (Spot 5, index 3), 6C (Spot 6, index 2), 13A (Spot 13, index 0)
+    final freeSeats = ['1A', '5D', '6C', '13A'];
+
     // Create 15 spots
     for (int i = 1; i <= 15; i++) {
       final docRef = firestore.collection('study_spots').doc('spot_$i');
+      Map<String, dynamic> seats = {};
 
-      // Randomly occupy some seats for realistic dummy data
-      // For this user request "needed some dummy data"
-      Map<String, String?> seats = {
-        'A': (i % 2 == 0) ? 'occupied' : null,
-        'B': (i % 3 == 0) ? 'occupied' : null,
-        'C': null,
-        'D': (i > 10) ? 'occupied' : null,
-      };
+      for (var letter in ['A', 'B', 'C', 'D']) {
+        final seatId = '$i$letter';
+        if (freeSeats.contains(seatId)) {
+          seats[letter] = null; // Free
+        } else {
+          // Occupied by dummy user
+          seats[letter] = {
+            'status': 'occupied',
+            'userId': 'dummy_user_$seatId',
+            'timestamp': Timestamp.now(),
+          };
+        }
+      }
 
       batch.set(docRef, {'seats': seats});
     }
 
     try {
       await batch.commit();
+      print("Dummy data initialized: 56/60 seats occupied.");
     } catch (e) {
       print('Error initializing dummy data: $e');
     }

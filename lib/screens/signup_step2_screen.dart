@@ -46,35 +46,63 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
       });
 
       try {
-        // 1. Create User
-        UserCredential userCredential = await FirebaseAuth.instance
-            .createUserWithEmailAndPassword(
-              email: widget.email,
-              password: widget.password,
+        UserCredential? userCredential;
+
+        // 1. Create User or Sign In if exists
+        try {
+          userCredential = await FirebaseAuth.instance
+              .createUserWithEmailAndPassword(
+                email: widget.email,
+                password: widget.password,
+              );
+        } on FirebaseAuthException catch (e) {
+          if (e.code == 'email-already-in-use') {
+            // If user already exists, try to sign in
+            try {
+              userCredential = await FirebaseAuth.instance
+                  .signInWithEmailAndPassword(
+                    email: widget.email,
+                    password: widget.password,
+                  );
+            } catch (signInError) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('User exists: ${e.message}')),
+                );
+              }
+              return;
+            }
+          } else {
+            rethrow;
+          }
+        }
+
+        // 2. Additional User Data
+        if (userCredential != null) {
+          try {
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(userCredential.user!.uid)
+                .set({
+                  'firstName': _firstNameController.text.trim(),
+                  'lastName': _lastNameController.text.trim(),
+                  'university': _selectedUni,
+                  'school': _selectedSchool,
+                  'email': widget.email,
+                  'createdAt': FieldValue.serverTimestamp(),
+                }); // Merge true? No, overwrite profile
+          } catch (firestoreError) {
+            print("Firestore profile save failed: $firestoreError");
+            // Non-blocking failure for profile save - allow user to proceed
+            // But warn them if queue relies on it (Queue uses UID, so mostly fine)
+          }
+
+          if (mounted) {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (context) => const HomeScreen()),
+              (route) => false,
             );
-
-        // 2. Additional User Data (Optional - specific to user feedback)
-        // Check if we need to store profile data in Firestore
-        // Since user asked just for "registration on Users tab", creating user is enough.
-        // But for "persistence" of profile, we might want to store names.
-
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(userCredential.user!.uid)
-            .set({
-              'firstName': _firstNameController.text.trim(),
-              'lastName': _lastNameController.text.trim(),
-              'university': _selectedUni,
-              'school': _selectedSchool,
-              'email': widget.email,
-              'createdAt': FieldValue.serverTimestamp(),
-            });
-
-        if (mounted) {
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-            (route) => false,
-          );
+          }
         }
       } on FirebaseAuthException catch (e) {
         if (mounted) {
