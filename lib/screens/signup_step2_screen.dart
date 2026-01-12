@@ -78,31 +78,29 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
         }
 
         // 2. Additional User Data
-        if (userCredential != null) {
-          try {
-            await FirebaseFirestore.instance
-                .collection('users')
-                .doc(userCredential.user!.uid)
-                .set({
-                  'firstName': _firstNameController.text.trim(),
-                  'lastName': _lastNameController.text.trim(),
-                  'university': _selectedUni,
-                  'school': _selectedSchool,
-                  'email': widget.email,
-                  'createdAt': FieldValue.serverTimestamp(),
-                }); // Merge true? No, overwrite profile
-          } catch (firestoreError) {
-            print("Firestore profile save failed: $firestoreError");
-            // Non-blocking failure for profile save - allow user to proceed
-            // But warn them if queue relies on it (Queue uses UID, so mostly fine)
-          }
+        try {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(userCredential.user!.uid)
+              .set({
+                'firstName': _firstNameController.text.trim(),
+                'lastName': _lastNameController.text.trim(),
+                'university': _selectedUni,
+                'school': _selectedSchool,
+                'email': widget.email,
+                'createdAt': FieldValue.serverTimestamp(),
+              }); // Merge true? No, overwrite profile
+        } catch (firestoreError) {
+          print("Firestore profile save failed: $firestoreError");
+          // Non-blocking failure for profile save - allow user to proceed
+          // But warn them if queue relies on it (Queue uses UID, so mostly fine)
+        }
 
-          if (mounted) {
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (context) => const HomeScreen()),
-              (route) => false,
-            );
-          }
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
+            (route) => false,
+          );
         }
       } on FirebaseAuthException catch (e) {
         if (mounted) {
