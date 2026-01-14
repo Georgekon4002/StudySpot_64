@@ -4,8 +4,12 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'qr_scan_screen.dart';
-import 'welcome_screen.dart';
+
 import 'profile_screen.dart';
+import 'chat_screen.dart';
+import 'feed_screen.dart';
+import 'focus_screen.dart';
+import '../widgets/profile_avatar_button.dart';
 
 // Seat states: null = empty, true = occupied, 'reserved' = reserved by user
 // NOW: We will use a Map {'status': 'occupied'/'reserved', 'userId': 'xyz'} to store detailed info
@@ -27,6 +31,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int? _reservedSpotIndex; // Which spot user reserved
   int? _reservedSeatIndex; // Which seat user reserved
   String? _reservationStatus; // 'reserved' or 'occupied'
+
   Timer? _reservationTimer; // Timer for 30-minute reservation
   bool _isProcessingReservation =
       false; // Lock to prevent multiple auto-reservations
@@ -252,270 +257,191 @@ class _HomeScreenState extends State<HomeScreen> {
             }
 
             return Scaffold(
-              backgroundColor: Colors.white,
-              body: SafeArea(
-                child: Column(
-                  children: [
-                    // Header Section
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 16,
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              backgroundColor: _selectedIndex == 0
+                  ? Colors.white
+                  : Colors.transparent, // Let body define color
+              body: _selectedIndex == 0
+                  ? SafeArea(
+                      child: Column(
                         children: [
-                          // App Name with colored "Spot"
-                          RichText(
-                            text: TextSpan(
-                              style: GoogleFonts.alata(
-                                fontSize: 34,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black,
-                              ),
+                          // Header Section
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 16,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                const TextSpan(text: 'Study'),
-                                TextSpan(
-                                  text: 'Spot',
-                                  style: GoogleFonts.alata(
-                                    fontSize: 34,
-                                    fontWeight: FontWeight.bold,
-                                    color: orangeColor,
+                                // App Name with colored "Spot"
+                                RichText(
+                                  text: TextSpan(
+                                    style: GoogleFonts.alata(
+                                      fontSize: 34,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black,
+                                    ),
+                                    children: [
+                                      const TextSpan(text: 'Study'),
+                                      TextSpan(
+                                        text: 'Spot',
+                                        style: GoogleFonts.alata(
+                                          fontSize: 34,
+                                          fontWeight: FontWeight.bold,
+                                          color: orangeColor,
+                                        ),
+                                      ),
+                                    ],
                                   ),
+                                ),
+                                // Profile Picture
+                                const ProfileAvatarButton(),
+                              ],
+                            ),
+                          ),
+
+                          // Progress and Count Section
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment
+                                  .center, // Ensure vertical alignment
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    // Circular Progress Indicator
+                                    SizedBox(
+                                      width: 60,
+                                      height: 60,
+                                      child: Stack(
+                                        alignment: Alignment.center,
+                                        fit: StackFit.expand,
+                                        children: [
+                                          // Background circle
+                                          CircularProgressIndicator(
+                                            value: 1.0,
+                                            strokeWidth: 8,
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                  beigeColor,
+                                                ),
+                                            backgroundColor: Colors.transparent,
+                                          ),
+                                          // Progress arc
+                                          CircularProgressIndicator(
+                                            value: progress,
+                                            strokeWidth: 8,
+                                            valueColor:
+                                                const AlwaysStoppedAnimation<
+                                                  Color
+                                                >(orangeColor),
+                                            backgroundColor: Colors.transparent,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 15),
+                                    // Count Text
+                                    Text(
+                                      '$occupiedSpots/$totalSpots',
+                                      style: GoogleFonts.alata(
+                                        fontSize: 32,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const Spacer(),
+
+                                // OLD QUEUE UI REPLACED WITH NEW LOGIC
+                                Builder(
+                                  builder: (context) {
+                                    if (myQueuePosition != null) {
+                                      return Text(
+                                        'Queue No.: $myQueuePosition',
+                                        style: GoogleFonts.alata(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight
+                                              .bold, // Bold to match screenshot
+                                          color:
+                                              orangeColor, // Orange color as per screenshot usually
+                                        ),
+                                      );
+                                    } else if (occupiedSpots == totalSpots &&
+                                        !_isSeated) {
+                                      // Hide if seated
+                                      return ElevatedButton(
+                                        onPressed: _enqueueUser,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: orangeColor,
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 12,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              20,
+                                            ), // More rounded
+                                          ),
+                                        ),
+                                        child: Text(
+                                          'Enqueue',
+                                          style: GoogleFonts.alata(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                    return const SizedBox.shrink();
+                                  },
                                 ),
                               ],
                             ),
                           ),
-                          // Profile Picture
-                          PopupMenuButton<String>(
-                            onSelected: (value) {
-                              if (value == 'profile') {
-                                if (currentUser != null) {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => ProfileScreen(
-                                        userId: currentUser.uid,
-                                        isCurrentUser: true,
-                                      ),
+
+                          const SizedBox(height: 8),
+
+                          // Study Spots Grid
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                              child: GridView.builder(
+                                gridDelegate:
+                                    const SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: 3,
+                                      crossAxisSpacing: 12,
+                                      mainAxisSpacing: 12,
+                                      childAspectRatio: 0.85,
                                     ),
+                                itemCount: studySpots.length,
+                                padding: const EdgeInsets.only(bottom: 100),
+                                itemBuilder: (context, index) {
+                                  return _buildStudySpotCard(
+                                    index + 1,
+                                    studySpots[index],
                                   );
-                                }
-                              } else if (value == 'logout') {
-                                FirebaseAuth.instance.signOut().then((_) {
-                                  Navigator.of(context).pushAndRemoveUntil(
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          const WelcomeWrapper(),
-                                    ),
-                                    (route) => false,
-                                  );
-                                });
-                              }
-                            },
-                            itemBuilder: (BuildContext context) =>
-                                <PopupMenuEntry<String>>[
-                                  PopupMenuItem<String>(
-                                    value: 'profile',
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.person,
-                                          color: Colors.black87,
-                                          size: 20,
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Text(
-                                          'View Profile',
-                                          style: GoogleFonts.alata(
-                                            color: Colors.black87,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  PopupMenuItem<String>(
-                                    value: 'logout',
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.logout,
-                                          color: Colors.red[400],
-                                          size: 20,
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Text(
-                                          'Sign Out',
-                                          style: GoogleFonts.alata(
-                                            color: Colors.red[400],
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                            child: Container(
-                              width: 60, // Increased
-                              height: 60, // Increased
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.grey[300],
-                                border: Border.all(
-                                  color: Colors.grey[400]!,
-                                  width: 1,
-                                ),
-                              ),
-                              child: Icon(
-                                Icons.person,
-                                color: Colors.grey[600],
-                                size: 38, // Increased
+                                },
                               ),
                             ),
                           ),
+
+                          const SizedBox(height: 8),
                         ],
                       ),
-                    ),
+                    )
+                  : _selectedIndex == 1
+                  ? const ChatScreen()
+                  : _selectedIndex == 2
+                  ? const FeedScreen()
+                  : const FocusScreen(),
 
-                    // Progress and Count Section
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.center, // Ensure vertical alignment
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              // Circular Progress Indicator
-                              SizedBox(
-                                width: 60,
-                                height: 60,
-                                child: Stack(
-                                  alignment: Alignment.center,
-                                  fit: StackFit.expand,
-                                  children: [
-                                    // Background circle
-                                    CircularProgressIndicator(
-                                      value: 1.0,
-                                      strokeWidth: 8,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        beigeColor,
-                                      ),
-                                      backgroundColor: Colors.transparent,
-                                    ),
-                                    // Progress arc
-                                    CircularProgressIndicator(
-                                      value: progress,
-                                      strokeWidth: 8,
-                                      valueColor:
-                                          const AlwaysStoppedAnimation<Color>(
-                                        orangeColor,
-                                      ),
-                                      backgroundColor: Colors.transparent,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 15),
-                              // Count Text
-                              Text(
-                                '$occupiedSpots/$totalSpots',
-                                style: GoogleFonts.alata(
-                                  fontSize: 32,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const Spacer(),
-
-                          // OLD QUEUE UI REPLACED WITH NEW LOGIC
-                          // Logic:
-                          // 1. If user is in queue -> Show "Queue No.: X" (Orange text)
-                          // 2. Else IF full (60/60) -> Show "Scan to Enqueue" Button
-                          // 3. Else -> Empty (or "Scan to Enqueue" only visible when full)
-                          Builder(
-                            builder: (context) {
-                              if (myQueuePosition != null) {
-                                return Text(
-                                  'Queue No.: $myQueuePosition',
-                                  style: GoogleFonts.alata(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight
-                                        .bold, // Bold to match screenshot
-                                    color:
-                                        orangeColor, // Orange color as per screenshot usually (or black if unspecified, but orange looks standard)
-                                  ),
-                                );
-                              } else if (occupiedSpots == totalSpots &&
-                                  !_isSeated) {
-                                // Hide if seated
-                                return ElevatedButton(
-                                  onPressed: _enqueueUser,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: orangeColor,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 12,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(
-                                        20,
-                                      ), // More rounded
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'Enqueue',
-                                    style: GoogleFonts.alata(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                );
-                              }
-                              return const SizedBox.shrink();
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    // Study Spots Grid
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-                        child: GridView.builder(
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 3,
-                                crossAxisSpacing: 12,
-                                mainAxisSpacing: 12,
-                                childAspectRatio: 0.85,
-                              ),
-                          itemCount: studySpots.length,
-                          padding: const EdgeInsets.only(bottom: 100),
-                          itemBuilder: (context, index) {
-                            return _buildStudySpotCard(
-                              index + 1,
-                              studySpots[index],
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 8),
-                  ],
-                ),
-              ),
               bottomNavigationBar: Container(
                 decoration: BoxDecoration(
                   color: Colors.grey[100],
@@ -533,64 +459,92 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        _buildNavItem(Icons.home, 'Home', 0, true),
+                        _buildNavItem(Icons.home, 0, orangeColor, beigeColor),
                         _buildNavItem(
                           Icons.chat_bubble_outline,
-                          'Chat',
                           1,
-                          false,
+                          const Color(0xFF2D9800),
+                          const Color(0xFFC8FFC9),
                         ),
-                        _buildNavItem(Icons.article_outlined, 'News', 2, false),
+                        _buildNavItem(
+                          Icons.article_outlined,
+                          2,
+                          Colors.blue,
+                          Colors.blue.withValues(alpha: 0.2),
+                        ),
                         _buildNavItem(
                           Icons.center_focus_strong_outlined,
-                          'Focus',
                           3,
-                          false,
+                          Colors.purple,
+                          Colors.purple.withValues(alpha: 0.2),
                         ),
                       ],
                     ),
                   ),
                 ),
               ),
-              floatingActionButton: Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: SizedBox(
-                  width: 75,
-                  height: 75,
-                  child: FloatingActionButton(
-                    onPressed: () {
-                      // Show menu if there are available seats OR user is seated
-                      if (_hasAvailableSeats() || _isSeated) {
-                        _showFabMenu();
-                      }
-                    },
-                    backgroundColor: Colors.transparent,
-                    elevation: 0,
-                    child: Container(
-                      width: 75,
-                      height: 75,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: orangeColor,
-                      ),
-                      child: const Icon(Icons.add, color: Colors.white, size: 40),
-                    ),
-                  ),
-                ),
-              ),
+              floatingActionButton: _selectedIndex == 0 ? _buildFab() : null,
             );
           }, // end queue builder
         );
       },
+    );
+  }
+
+  Widget _buildFab() {
+    bool showFab = false;
+    bool isLeave = false;
+
+    if (_isSeated) {
+      if (_reservationStatus == 'occupied') {
+        showFab = true;
+        isLeave = true;
+      } else {
+        // Reserved -> Scan to confirm
+        showFab = true;
+        isLeave = false;
+      }
+    } else {
+      if (_hasAvailableSeats()) {
+        showFab = true;
+        isLeave = false; // Scan to reserve
+      }
+    }
+
+    if (!showFab) return const SizedBox.shrink();
+
+    final iconData = isLeave ? Icons.exit_to_app : Icons.qr_code_scanner;
+    final VoidCallback action = isLeave ? _showLeaveDialog : _openQRScanner;
+
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: SizedBox(
+        width: 75,
+        height: 75,
+        child: FloatingActionButton(
+          onPressed: action,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          child: Container(
+            width: 75,
+            height: 75,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: orangeColor,
+            ),
+            child: Icon(iconData, color: Colors.white, size: 36),
+          ),
+        ),
+      ),
     );
   }
 
@@ -624,6 +578,19 @@ class _HomeScreenState extends State<HomeScreen> {
   ) async {
     if (userId == null) return;
 
+    String profilePicUrl = '';
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
+      if (userDoc.exists) {
+        profilePicUrl = userDoc.data()?['profilePicUrl'] ?? '';
+      }
+    } catch (e) {
+      print("Error fetching user profile for reservation: $e");
+    }
+
     // 0. Set Lock & Optimistic UI Update
     // We set _isSeated true immediately to block other reservations locally
     // We also set processing to true
@@ -645,6 +612,7 @@ class _HomeScreenState extends State<HomeScreen> {
       await _updateSeatStatusFirestore(spotIndex, seatIndex, {
         'status': 'reserved',
         'userId': userId,
+        'profilePicUrl': profilePicUrl,
         'timestamp': FieldValue.serverTimestamp(),
       });
 
@@ -758,6 +726,7 @@ class _HomeScreenState extends State<HomeScreen> {
     bool isOccupied = false;
     bool isReserved = false;
     String? seatedUserId;
+    String? profilePicUrl;
 
     if (seatState == true) {
       isOccupied = true;
@@ -768,6 +737,7 @@ class _HomeScreenState extends State<HomeScreen> {
     } else if (seatState is Map) {
       final status = seatState['status'];
       seatedUserId = seatState['userId'];
+      profilePicUrl = seatState['profilePicUrl'];
       if (status == 'occupied') isOccupied = true;
       if (status == 'reserved') isReserved = true;
     }
@@ -784,16 +754,21 @@ class _HomeScreenState extends State<HomeScreen> {
     Widget seatWidget;
     if (isOccupied) {
       seatWidget = Container(
-        width: 34, // Increased from 24
-        height: 34, // Increased from 24
+        width: 34,
+        height: 34,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: Colors.grey[800],
-        ),
-        child: const Icon(
-          Icons.person,
-          color: Colors.white,
-          size: 20, // Increased from 16
+          border: Border.all(color: Colors.grey[800]!, width: 1),
+          image: (profilePicUrl != null && profilePicUrl.isNotEmpty)
+              ? DecorationImage(
+                  image: NetworkImage(profilePicUrl),
+                  fit: BoxFit.cover,
+                )
+              : const DecorationImage(
+                  image: AssetImage('assets/images/default_avatar.png'),
+                  fit: BoxFit.cover,
+                ),
         ),
       );
     } else if (isReserved) {
@@ -804,14 +779,14 @@ class _HomeScreenState extends State<HomeScreen> {
         final progress = remaining.inSeconds / (30 * 60);
 
         seatWidget = SizedBox(
-          width: 42, // Increased from 32
-          height: 42, // Increased from 32
+          width: 42,
+          height: 42,
           child: Stack(
             alignment: Alignment.center,
             children: [
               SizedBox(
-                width: 42, // Increased from 32
-                height: 42, // Increased from 32
+                width: 42,
+                height: 42,
                 child: CircularProgressIndicator(
                   value: progress.clamp(0.0, 1.0),
                   strokeWidth: 3,
@@ -820,17 +795,21 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               Container(
-                width: 34, // Increased from 24
-                height: 34, // Increased from 24
+                width: 34,
+                height: 34,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: orangeColor,
                   border: Border.all(color: Colors.white, width: 1),
-                ),
-                child: const Icon(
-                  Icons.person,
-                  color: Colors.white,
-                  size: 20, // Increased from 14
+                  image: (profilePicUrl != null && profilePicUrl.isNotEmpty)
+                      ? DecorationImage(
+                          image: NetworkImage(profilePicUrl),
+                          fit: BoxFit.cover,
+                        )
+                      : const DecorationImage(
+                          image: AssetImage('assets/images/default_avatar.png'),
+                          fit: BoxFit.cover,
+                        ),
                 ),
               ),
             ],
@@ -838,20 +817,27 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       } else {
         seatWidget = Container(
-          width: 34, // Increased from 24
-          height: 34, // Increased from 24
-          decoration: BoxDecoration(shape: BoxShape.circle, color: orangeColor),
-          child: const Icon(
-            Icons.person,
-            color: Colors.white,
-            size: 20, // Increased from 16
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: orangeColor,
+            image: (profilePicUrl != null && profilePicUrl.isNotEmpty)
+                ? DecorationImage(
+                    image: NetworkImage(profilePicUrl),
+                    fit: BoxFit.cover,
+                  )
+                : const DecorationImage(
+                    image: AssetImage('assets/images/default_avatar.png'),
+                    fit: BoxFit.cover,
+                  ),
           ),
         );
       }
     } else {
       seatWidget = Container(
-        width: 34, // Increased from 24
-        height: 34, // Increased from 24
+        width: 34,
+        height: 34,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: Colors.grey[200],
@@ -1027,13 +1013,32 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     });
 
-    // 2. Firestore Update (Source of Truth)
-    // We store a rich object now
-    _updateSeatStatusFirestore(spotIndex, seatIndex, {
-      'status': 'reserved',
-      'userId': FirebaseAuth.instance.currentUser?.uid,
-      'timestamp': FieldValue.serverTimestamp(),
-    });
+    // 1.5 Fetch profile pic
+    String profilePicUrl = '';
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      FirebaseFirestore.instance.collection('users').doc(user.uid).get().then((
+        doc,
+      ) {
+        if (doc.exists) {
+          profilePicUrl = doc.data()?['profilePicUrl'] ?? '';
+          // 2. Firestore Update (Source of Truth)
+          _updateSeatStatusFirestore(spotIndex, seatIndex, {
+            'status': 'reserved',
+            'userId': user.uid,
+            'profilePicUrl': profilePicUrl,
+            'timestamp': FieldValue.serverTimestamp(),
+          });
+        }
+      });
+    } else {
+      // Fallback if no user? Should not happen
+      _updateSeatStatusFirestore(spotIndex, seatIndex, {
+        'status': 'reserved',
+        'userId': FirebaseAuth.instance.currentUser?.uid,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+    }
 
     // 3. Start Timer
     _startReservationTimer();
@@ -1086,137 +1091,6 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
     return false;
-  }
-
-  void _showFabMenu() {
-    final RenderBox overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox;
-    final Size screenSize = MediaQuery.of(context).size;
-    final double bottomNavHeight = 80; // Approximate bottom nav height
-    final double fabSize = 56; // Standard FAB size
-    final double fabPadding = 16; // Standard FAB padding from edges
-
-    showMenu(
-      context: context,
-      position: RelativeRect.fromRect(
-        Rect.fromLTWH(
-          screenSize.width - 200, // Position menu to the left of FAB area
-          screenSize.height -
-              bottomNavHeight -
-              fabSize -
-              fabPadding -
-              120, // Position above FAB
-          0,
-          0,
-        ),
-        Rect.fromLTWH(0, 0, overlay.size.width, overlay.size.height),
-      ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 8,
-      items: [
-        PopupMenuItem(
-          padding: EdgeInsets.zero,
-          enabled:
-              !_isSeated || (_isSeated && _reservationStatus == 'reserved'),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap:
-                  (!_isSeated ||
-                      (_isSeated && _reservationStatus == 'reserved'))
-                  ? () {
-                      Navigator.of(context).pop();
-                      _openQRScanner();
-                    }
-                  : null,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
-              ),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.qr_code_scanner,
-                      color: (!_isSeated || _reservationStatus == 'reserved')
-                          ? Colors.grey[800]
-                          : Colors.grey[400],
-                      size: 24,
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Scan QR',
-                      style: GoogleFonts.alata(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: (!_isSeated || _reservationStatus == 'reserved')
-                            ? Colors.black
-                            : Colors.grey[400],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-        PopupMenuItem(
-          padding: EdgeInsets.zero,
-          enabled:
-              _isSeated &&
-              _reservationStatus == 'occupied', // Only enabled if occupied
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: (_isSeated && _reservationStatus == 'occupied')
-                  ? () {
-                      Navigator.of(context).pop();
-                      _showLeaveDialog();
-                    }
-                  : null,
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(16),
-                bottomRight: Radius.circular(16),
-              ),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.logout,
-                      color: (_isSeated && _reservationStatus == 'occupied')
-                          ? Colors.grey[800]
-                          : Colors.grey[400],
-                      size: 24,
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Leave',
-                      style: GoogleFonts.alata(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: (_isSeated && _reservationStatus == 'occupied')
-                            ? Colors.black
-                            : Colors.grey[400],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
   }
 
   void _showLeaveDialog() {
@@ -1307,10 +1181,25 @@ class _HomeScreenState extends State<HomeScreen> {
           final nextUserDoc = queueSnapshot.docs.first;
           final nextUserId = nextUserDoc['userId'] as String;
 
+          // Fetch next user's profile pic
+          String nextUserProfilePic = '';
+          try {
+            final userDoc = await FirebaseFirestore.instance
+                .collection('users')
+                .doc(nextUserId)
+                .get();
+            if (userDoc.exists) {
+              nextUserProfilePic = userDoc.data()?['profilePicUrl'] ?? '';
+            }
+          } catch (e) {
+            print("Error fetching next user profile: $e");
+          }
+
           // Update seat to Reserved for Next User
           await _updateSeatStatusFirestore(spotIndex, seatIndex, {
             'status': 'reserved',
             'userId': nextUserId,
+            'profilePicUrl': nextUserProfilePic,
             'timestamp': FieldValue.serverTimestamp(),
           });
 
@@ -1638,7 +1527,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _confirmSeatOccupancy(int spotIndex, int seatIndex) {
+  Future<void> _confirmSeatOccupancy(int spotIndex, int seatIndex) async {
     if (_reservedSpotIndex != null && _reservedSeatIndex != null) {
       if (_reservedSpotIndex != spotIndex || _reservedSeatIndex != seatIndex) {
         _updateSeatStatusFirestore(
@@ -1662,9 +1551,27 @@ class _HomeScreenState extends State<HomeScreen> {
       _reservationStartTime = DateTime.now();
     });
 
+    // Fetch profile pic
+    String profilePicUrl = '';
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+        if (doc.exists) {
+          profilePicUrl = doc.data()?['profilePicUrl'] ?? '';
+        }
+      } catch (e) {
+        print("Error fetching profile pic for confirmation: $e");
+      }
+    }
+
     _updateSeatStatusFirestore(spotIndex, seatIndex, {
       'status': 'occupied',
       'userId': FirebaseAuth.instance.currentUser?.uid,
+      'profilePicUrl': profilePicUrl,
       'timestamp': FieldValue.serverTimestamp(),
     });
 
@@ -1728,46 +1635,29 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Widget _buildNavItem(IconData icon, String label, int index, bool isHome) {
+  Widget _buildNavItem(
+    IconData icon,
+    int index,
+    Color activeColor,
+    Color activeBgColor,
+  ) {
     final isSelected = _selectedIndex == index;
     return GestureDetector(
       onTap: () {
         setState(() {
           _selectedIndex = index;
         });
-        if (index != 0) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('$label tapped')));
-        }
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         decoration: BoxDecoration(
-          color: isSelected
-              ? orangeColor.withOpacity(0.15)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
+          color: isSelected ? activeBgColor : Colors.transparent,
+          borderRadius: BorderRadius.circular(24),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? orangeColor : Colors.grey[600],
-              size: 24,
-            ),
-            if (isHome)
-              Container(
-                margin: const EdgeInsets.only(top: 2),
-                width: 4,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: orangeColor,
-                  shape: BoxShape.circle,
-                ),
-              ),
-          ],
+        child: Icon(
+          icon,
+          color: isSelected ? activeColor : Colors.grey[600],
+          size: 28,
         ),
       ),
     );

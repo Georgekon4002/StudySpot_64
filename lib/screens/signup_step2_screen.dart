@@ -29,8 +29,18 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
 
   static const Color purpleColor = Color(0xFFBEA1F7);
 
-  final List<String> _uniOptions = ['NTUA', 'AUEB', 'UoA', 'UNIPI'];
-  final List<String> _schoolOptions = ['ECE', 'CIVIL', 'MECH', 'CHEM', 'ARCH'];
+  final List<String> _uniOptions = ['NTUA'];
+  final List<String> _schoolOptions = [
+    'ECE',
+    'Mech',
+    'Civil',
+    'Chem',
+    'AMPS',
+    'Arch',
+    'Metal',
+    'Survey',
+    'Naval',
+  ];
 
   @override
   void dispose() {

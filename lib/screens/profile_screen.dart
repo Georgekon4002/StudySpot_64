@@ -4,6 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/user_model.dart';
 import 'edit_profile_screen.dart';
+import 'studying_users_screen.dart';
+import 'colleagues_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String userId;
@@ -122,13 +124,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildHeader(user),
-                if (!widget.isCurrentUser) ...[ // Changed to widget.isCurrentUser
+                if (!widget.isCurrentUser) ...[
+                  // Changed to widget.isCurrentUser
                   const SizedBox(height: 16),
                   _buildActionButtons(user),
                 ],
                 const SizedBox(height: 24),
                 _buildSection(
-                  title: widget.isCurrentUser // Changed to widget.isCurrentUser
+                  title:
+                      widget
+                          .isCurrentUser // Changed to widget.isCurrentUser
                       ? 'About You'
                       : 'About ${user.firstName}',
                   content: Text(
@@ -142,40 +147,74 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 16),
                 _buildSection(
                   title: 'Currently Studying',
-                  content: Text(
-                    user.currentlyStudying.isNotEmpty
-                        ? user.currentlyStudying
-                        : "Nothing specified.",
-                    style: GoogleFonts.alata(
-                      fontSize: 14,
-                      color: Colors.black87,
-                    ),
+                  content: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        user.currentlyStudying.isNotEmpty
+                            ? user.currentlyStudying
+                            : "Nothing specified.",
+                        style: GoogleFonts.alata(
+                          fontSize: 14,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      if (user.currentlyStudying.isNotEmpty)
+                        TextButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => StudyingUsersScreen(
+                                  subject: user.currentlyStudying,
+                                ),
+                              ),
+                            );
+                          },
+                          child: Text(
+                            "See who else",
+                            style: GoogleFonts.alata(
+                              fontSize: 12,
+                              color: Colors.blue,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 16),
                 _buildSection(
-                  title: widget.isCurrentUser // Changed to widget.isCurrentUser
+                  title:
+                      widget
+                          .isCurrentUser // Changed to widget.isCurrentUser
                       ? 'Your Friends'
                       : "${user.firstName}’s Friends",
                   content: _buildFriendsList(user),
                 ),
                 const SizedBox(height: 16),
                 _buildSection(
-                  title: widget.isCurrentUser // Changed to widget.isCurrentUser
+                  title:
+                      widget
+                          .isCurrentUser // Changed to widget.isCurrentUser
                       ? 'Your Thoughts'
                       : "${user.firstName}’s Thoughts",
                   content: _buildThoughts(user),
                 ),
                 const SizedBox(height: 16),
                 _buildSection(
-                  title: widget.isCurrentUser // Changed to widget.isCurrentUser
+                  title:
+                      widget
+                          .isCurrentUser // Changed to widget.isCurrentUser
                       ? 'Your Moments'
                       : "${user.firstName}’s Moments",
                   content: _buildMoments(user),
                 ),
                 const SizedBox(height: 16),
                 _buildSection(
-                  title: widget.isCurrentUser // Changed to widget.isCurrentUser
+                  title:
+                      widget
+                          .isCurrentUser // Changed to widget.isCurrentUser
                       ? 'Your Achievements'
                       : "${user.firstName}’s Achievements",
                   content: _buildAchievements(user),
@@ -194,30 +233,113 @@ class _ProfileScreenState extends State<ProfileScreen> {
         CircleAvatar(
           radius: 35,
           backgroundColor: Colors.grey[200],
-          backgroundImage: const NetworkImage('https://i.pravatar.cc/150'),
+          backgroundImage: user.profilePicUrl.isNotEmpty
+              ? NetworkImage(user.profilePicUrl) as ImageProvider
+              : const AssetImage('assets/images/default_avatar.png'),
         ),
         const SizedBox(width: 16),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              user.fullName,
-              style: GoogleFonts.alata(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      user.fullName,
+                      style: GoogleFonts.alata(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _buildUserStatusBadge(user.uid),
+                ],
               ),
-            ),
-            Text(
-              '${user.school} ${user.university}',
-              style: GoogleFonts.alata(
-                fontSize: 14,
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w500,
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ColleaguesScreen(
+                        school: user.school,
+                        university: user.university,
+                      ),
+                    ),
+                  );
+                },
+                child: Text(
+                  '${user.school} ${user.university}',
+                  style: GoogleFonts.alata(
+                    fontSize: 14,
+                    color: Colors
+                        .blue, // Make it look clickable (or keep grey but clickable)
+                    decoration:
+                        TextDecoration.underline, // Add underline for clarity
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
+    );
+  }
+
+  Widget _buildUserStatusBadge(String userId) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('study_spots').snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
+
+        String? status; // 'Seated' or 'Coming Soon'
+
+        for (var doc in snapshot.data!.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final seatsMap = data['seats'] as Map<String, dynamic>?;
+          if (seatsMap == null) continue;
+
+          for (var seatInfo in seatsMap.values) {
+            if (seatInfo is Map<String, dynamic>) {
+              if (seatInfo['userId'] == userId) {
+                final seatStatus = seatInfo['status'];
+                if (seatStatus == 'occupied') {
+                  status = 'Seated';
+                } else if (seatStatus == 'reserved') {
+                  status = 'Coming Soon';
+                }
+                break;
+              }
+            }
+          }
+          if (status != null) break;
+        }
+
+        if (status == null) return const SizedBox.shrink();
+
+        final Color badgeColor = status == 'Seated'
+            ? const Color(0xFFFF7B00)
+            : const Color(0xFFFF2F1C);
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: badgeColor,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            status,
+            style: GoogleFonts.alata(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -250,8 +372,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   backgroundColor: isFriend
                       ? const Color(0xFF81D4FA) // Light Blue
                       : const Color(0xFFFFECC9), // Original Beige
-                  foregroundColor:
-                      isFriend ? Colors.white : const Color(0xFFFF7B00),
+                  foregroundColor: isFriend
+                      ? Colors.white
+                      : const Color(0xFFFF7B00),
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
@@ -333,7 +456,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
 
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
-           return Text(
+          return Text(
             "No Friends", // Should ideally match emptiness check but just safe
             style: GoogleFonts.alata(color: Colors.grey[700]),
           );
@@ -347,13 +470,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: friends.map((friend) {
               return GestureDetector(
                 onTap: () {
-                   Navigator.push(
+                  Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (context) => ProfileScreen(
                         userId: friend.uid,
-                         // Needs check if it's me
-                         isCurrentUser: friend.uid == FirebaseAuth.instance.currentUser?.uid,
+                        // Needs check if it's me
+                        isCurrentUser:
+                            friend.uid ==
+                            FirebaseAuth.instance.currentUser?.uid,
                       ),
                     ),
                   );
@@ -365,13 +490,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       CircleAvatar(
                         radius: 24,
                         backgroundColor: Colors.grey[300],
-                         backgroundImage: const NetworkImage('https://i.pravatar.cc/150'),
+                        backgroundImage: friend.profilePicUrl.isNotEmpty
+                            ? NetworkImage(friend.profilePicUrl)
+                                  as ImageProvider
+                            : const AssetImage(
+                                'assets/images/default_avatar.png',
+                              ),
                       ),
                       const SizedBox(height: 4),
-                       Text(
+                      Text(
                         friend.firstName,
-                         style: GoogleFonts.alata(fontSize: 12, color: Colors.black87),
-                       ),
+                        style: GoogleFonts.alata(
+                          fontSize: 12,
+                          color: Colors.black87,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -388,26 +521,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       // Create chunks of 10 for 'whereIn' query limit if needed, but for now simple
-      // Or simply fetch by IDs. 
+      // Or simply fetch by IDs.
       // Firestore 'whereIn' is limited to 10. If list is large, fetch individually or loops.
       // Simplest for MVP: Fetch all users where ID is in list.
-      
+
       final chunks = <List<String>>[];
       for (var i = 0; i < friendIds.length; i += 10) {
-        chunks.add(friendIds.sublist(i, i + 10 > friendIds.length ? friendIds.length : i + 10));
+        chunks.add(
+          friendIds.sublist(
+            i,
+            i + 10 > friendIds.length ? friendIds.length : i + 10,
+          ),
+        );
       }
 
       final List<UserModel> friends = [];
       for (final chunk in chunks) {
-         final snapshot = await FirebaseFirestore.instance
+        final snapshot = await FirebaseFirestore.instance
             .collection('users')
             .where(FieldPath.documentId, whereIn: chunk)
             .get();
-          
-          friends.addAll(snapshot.docs.map((doc) => UserModel.fromFirestore(doc)));
+
+        friends.addAll(
+          snapshot.docs.map((doc) => UserModel.fromFirestore(doc)),
+        );
       }
       return friends;
-
     } catch (e) {
       debugPrint("Error fetching friends: $e");
       return [];
