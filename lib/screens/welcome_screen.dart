@@ -73,7 +73,7 @@ class _WelcomeWrapperState extends State<WelcomeWrapper> {
               const SizedBox(height: 60),
               Text(
                 'Swipe up',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.alata(
                   fontSize: 14,
                   color: Colors.grey[600],
                   fontWeight: FontWeight.w400,
@@ -101,7 +101,7 @@ class _WelcomeWrapperState extends State<WelcomeWrapper> {
               const Spacer(),
               Text(
                 'Welcome to StudySpot!',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.alata(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                   color: Colors.black,
@@ -131,7 +131,7 @@ class _WelcomeWrapperState extends State<WelcomeWrapper> {
                   ),
                   child: Text(
                     'Login',
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.alata(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),
@@ -142,7 +142,7 @@ class _WelcomeWrapperState extends State<WelcomeWrapper> {
               const SizedBox(height: 24),
               Text(
                 'or',
-                style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[400]),
+                style: GoogleFonts.alata(fontSize: 14, color: Colors.grey[400]),
               ),
               const SizedBox(height: 24),
 
@@ -157,7 +157,7 @@ class _WelcomeWrapperState extends State<WelcomeWrapper> {
                 },
                 child: Text(
                   'Create an account',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.alata(
                     fontSize: 16,
                     color: purpleColor,
                     fontWeight: FontWeight.w500,

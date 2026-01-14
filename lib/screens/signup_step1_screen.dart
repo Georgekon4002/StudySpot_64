@@ -65,7 +65,7 @@ class _SignupStep1ScreenState extends State<SignupStep1Screen> {
                 Center(
                   child: Text(
                     'Welcome to StudySpot!',
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.alata(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
                       color: purpleColor,
@@ -77,7 +77,7 @@ class _SignupStep1ScreenState extends State<SignupStep1Screen> {
                 // Email Field
                 Text(
                   'Email',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.alata(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                     color: Colors.black,
@@ -97,7 +97,7 @@ class _SignupStep1ScreenState extends State<SignupStep1Screen> {
                   },
                   decoration: InputDecoration(
                     hintText: 'mariospappas@hotmail.gr',
-                    hintStyle: GoogleFonts.inter(color: Colors.grey[400]),
+                    hintStyle: GoogleFonts.alata(color: Colors.grey[400]),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 14,
@@ -117,7 +117,7 @@ class _SignupStep1ScreenState extends State<SignupStep1Screen> {
                 // Password Field
                 Text(
                   'Password',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.alata(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                     color: Colors.black,
@@ -169,7 +169,7 @@ class _SignupStep1ScreenState extends State<SignupStep1Screen> {
                 // Re-enter Password Field
                 Text(
                   'Re-enter your password',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.alata(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                     color: Colors.black,
@@ -234,7 +234,7 @@ class _SignupStep1ScreenState extends State<SignupStep1Screen> {
                     ),
                     child: Text(
                       'Next',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.alata(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),

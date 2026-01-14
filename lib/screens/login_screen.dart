@@ -87,7 +87,7 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 Text(
                   'Welcome Back',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.alata(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
                     color: Colors.black,
@@ -96,7 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 8),
                 Text(
                   'Please sign in to continue',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.alata(
                     fontSize: 16,
                     color: Colors.grey[600],
                   ),
@@ -177,7 +177,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     child: Text(
                       'Login',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.alata(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),

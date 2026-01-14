@@ -268,7 +268,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           // App Name with colored "Spot"
                           RichText(
                             text: TextSpan(
-                              style: GoogleFonts.inter(
+                              style: GoogleFonts.alata(
                                 fontSize: 28,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.black,
@@ -277,7 +277,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 const TextSpan(text: 'Study'),
                                 TextSpan(
                                   text: 'Spot',
-                                  style: GoogleFonts.inter(
+                                  style: GoogleFonts.alata(
                                     fontSize: 28,
                                     fontWeight: FontWeight.bold,
                                     color: orangeColor,
@@ -311,15 +311,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                     (route) => false,
                                   );
                                 });
-                              } else if (value == 'reset_data') {
-                                _initializeDummyData(); // Force reset
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      "Resetting to 56/60 seats...",
-                                    ),
-                                  ),
-                                );
                               }
                             },
                             itemBuilder: (BuildContext context) =>
@@ -336,7 +327,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                         const SizedBox(width: 12),
                                         Text(
                                           'View Profile',
-                                          style: GoogleFonts.inter(
+                                          style: GoogleFonts.alata(
                                             color: Colors.black87,
                                             fontWeight: FontWeight.w500,
                                           ),
@@ -356,29 +347,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                         const SizedBox(width: 12),
                                         Text(
                                           'Sign Out',
-                                          style: GoogleFonts.inter(
+                                          style: GoogleFonts.alata(
                                             color: Colors.red[400],
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  // Debug Option for Testing
-                                  PopupMenuItem<String>(
-                                    value: 'reset_data',
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.refresh,
-                                          color: Colors.blue,
-                                          size: 20,
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Text(
-                                          'Reset Data (Test)',
-                                          style: GoogleFonts.inter(
-                                            color: Colors.blue,
                                             fontWeight: FontWeight.w500,
                                           ),
                                         ),
@@ -387,8 +357,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 ],
                             child: Container(
-                              width: 40,
-                              height: 40,
+                              width: 52, // Increased from 40
+                              height: 52, // Increased from 40
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: Colors.grey[300],
@@ -400,7 +370,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               child: Icon(
                                 Icons.person,
                                 color: Colors.grey[600],
-                                size: 24,
+                                size: 32, // Increased from 24
                               ),
                             ),
                           ),
@@ -415,6 +385,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         vertical: 12,
                       ),
                       child: Row(
+                        crossAxisAlignment: CrossAxisAlignment
+                            .center, // Ensure vertical alignment
                         children: [
                           // Circular Progress Indicator
                           SizedBox(
@@ -448,7 +420,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           // Count Text
                           Text(
                             '$occupiedSpots/$totalSpots',
-                            style: GoogleFonts.inter(
+                            style: GoogleFonts.alata(
                               fontSize: 32,
                               fontWeight: FontWeight.bold,
                               color: Colors.black,
@@ -466,7 +438,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               if (myQueuePosition != null) {
                                 return Text(
                                   'Queue No.: $myQueuePosition',
-                                  style: GoogleFonts.inter(
+                                  style: GoogleFonts.alata(
                                     fontSize: 18,
                                     fontWeight: FontWeight
                                         .bold, // Bold to match screenshot
@@ -493,8 +465,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                     ),
                                   ),
                                   child: Text(
-                                    'Scan to Enqueue',
-                                    style: GoogleFonts.inter(
+                                    'Enqueue',
+                                    style: GoogleFonts.alata(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w600,
                                     ),
@@ -678,11 +650,11 @@ class _HomeScreenState extends State<HomeScreen> {
             backgroundColor: beigeColor,
             title: Text(
               "Seat Assigned!",
-              style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+              style: GoogleFonts.alata(fontWeight: FontWeight.bold),
             ),
             content: Text(
               "Seat ${spotIndex + 1}${['A', 'B', 'C', 'D'][seatIndex]} is now free and you're entitled to it! It has been reserved for you for 30 minutes.",
-              style: GoogleFonts.inter(),
+              style: GoogleFonts.alata(),
             ),
             actions: [
               TextButton(
@@ -697,7 +669,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
                 child: Text(
                   "Awesome!",
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.alata(
                     color: orangeColor,
                     fontWeight: FontWeight.bold,
                   ),
@@ -760,7 +732,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Center(
             child: Text(
               '#$spotNumber',
-              style: GoogleFonts.inter(
+              style: GoogleFonts.alata(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
                 color: Colors.black87,
@@ -802,13 +774,17 @@ class _HomeScreenState extends State<HomeScreen> {
     Widget seatWidget;
     if (isOccupied) {
       seatWidget = Container(
-        width: 24,
-        height: 24,
+        width: 34, // Increased from 24
+        height: 34, // Increased from 24
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: Colors.grey[800],
         ),
-        child: const Icon(Icons.person, color: Colors.white, size: 16),
+        child: const Icon(
+          Icons.person,
+          color: Colors.white,
+          size: 20, // Increased from 16
+        ),
       );
     } else if (isReserved) {
       if (isUserReserved && _reservationStartTime != null) {
@@ -818,14 +794,14 @@ class _HomeScreenState extends State<HomeScreen> {
         final progress = remaining.inSeconds / (30 * 60);
 
         seatWidget = SizedBox(
-          width: 32,
-          height: 32,
+          width: 42, // Increased from 32
+          height: 42, // Increased from 32
           child: Stack(
             alignment: Alignment.center,
             children: [
               SizedBox(
-                width: 32,
-                height: 32,
+                width: 42, // Increased from 32
+                height: 42, // Increased from 32
                 child: CircularProgressIndicator(
                   value: progress.clamp(0.0, 1.0),
                   strokeWidth: 3,
@@ -834,30 +810,38 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               Container(
-                width: 24,
-                height: 24,
+                width: 34, // Increased from 24
+                height: 34, // Increased from 24
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: orangeColor,
                   border: Border.all(color: Colors.white, width: 1),
                 ),
-                child: const Icon(Icons.person, color: Colors.white, size: 14),
+                child: const Icon(
+                  Icons.person,
+                  color: Colors.white,
+                  size: 20, // Increased from 14
+                ),
               ),
             ],
           ),
         );
       } else {
         seatWidget = Container(
-          width: 24,
-          height: 24,
+          width: 34, // Increased from 24
+          height: 34, // Increased from 24
           decoration: BoxDecoration(shape: BoxShape.circle, color: orangeColor),
-          child: const Icon(Icons.person, color: Colors.white, size: 16),
+          child: const Icon(
+            Icons.person,
+            color: Colors.white,
+            size: 20, // Increased from 16
+          ),
         );
       }
     } else {
       seatWidget = Container(
-        width: 24,
-        height: 24,
+        width: 34, // Increased from 24
+        height: 34, // Increased from 24
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: Colors.grey[200],
@@ -872,7 +856,8 @@ class _HomeScreenState extends State<HomeScreen> {
           // Case 1: Empty -> Reserve
           if (isEmpty) {
             if (_isSeated) {
-              _showUnreserveMenu(context, details.globalPosition);
+              // User is already seated, do nothing for other empty seats
+              // (They can only unreserve their own seat via its tap handler)
             } else {
               _showReserveMenu(
                 context,
@@ -945,7 +930,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(width: 8),
                     Text(
                       'Reserve',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.alata(
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
                         color: Colors.black,
@@ -999,7 +984,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(width: 8),
                     Text(
                       'Unreserve',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.alata(
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
                         color: Colors.black,
@@ -1156,7 +1141,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(width: 12),
                     Text(
                       'Scan QR',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.alata(
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
                         color: (!_isSeated || _reservationStatus == 'reserved')
@@ -1206,7 +1191,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(width: 12),
                     Text(
                       'Leave',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.alata(
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
                         color: (_isSeated && _reservationStatus == 'occupied')
@@ -1243,7 +1228,7 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Text(
                   'See you later! 👋',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.alata(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
                     color: Colors.black,
@@ -1253,7 +1238,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 16),
                 Text(
                   'Your seat is now free for someone else who needs to focus 😊',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.alata(
                     fontSize: 16,
                     fontWeight: FontWeight.w400,
                     color: Colors.black87,
@@ -1276,7 +1261,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     child: Text(
                       'Back to Map',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.alata(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                         color: orangeColor,
@@ -1524,7 +1509,7 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Text(
                   'Seat is free! 🥳',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.alata(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
                     color: Colors.black,
@@ -1534,7 +1519,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 16),
                 Text(
                   'You want to sit here to focus and study?',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.alata(
                     fontSize: 16,
                     fontWeight: FontWeight.w400,
                     color: Colors.black87,
@@ -1552,7 +1537,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       },
                       child: Text(
                         'Accept',
-                        style: GoogleFonts.inter(
+                        style: GoogleFonts.alata(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                           color: orangeColor,
@@ -1565,7 +1550,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       },
                       child: Text(
                         'Decline',
-                        style: GoogleFonts.inter(
+                        style: GoogleFonts.alata(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                           color: orangeColor,
@@ -1601,7 +1586,7 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Text(
                   'Seat is taken 😓',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.alata(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
                     color: Colors.black,
@@ -1611,7 +1596,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 16),
                 Text(
                   'Unfortunately this seat is already taken. You can find which seat is free on the map.',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.alata(
                     fontSize: 16,
                     fontWeight: FontWeight.w400,
                     color: Colors.black87,
@@ -1627,7 +1612,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     },
                     child: Text(
                       'Back to Map',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.alata(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                         color: orangeColor,

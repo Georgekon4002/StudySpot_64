@@ -151,7 +151,7 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
                 Center(
                   child: Text(
                     'Let\'s complete your profile',
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.alata(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
                       color: purpleColor,
@@ -163,7 +163,7 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
                 // First Name
                 Text(
                   'First name',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.alata(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                     color: Colors.black,
@@ -180,7 +180,7 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
                   },
                   decoration: InputDecoration(
                     hintText: 'Marios',
-                    hintStyle: GoogleFonts.inter(color: Colors.grey[400]),
+                    hintStyle: GoogleFonts.alata(color: Colors.grey[400]),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 14,
@@ -200,7 +200,7 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
                 // Last Name
                 Text(
                   'Last name',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.alata(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                     color: Colors.black,
@@ -217,7 +217,7 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
                   },
                   decoration: InputDecoration(
                     hintText: 'Pappas',
-                    hintStyle: GoogleFonts.inter(color: Colors.grey[400]),
+                    hintStyle: GoogleFonts.alata(color: Colors.grey[400]),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 14,
@@ -237,7 +237,7 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
                 // Uni Dropdown
                 Text(
                   'Uni',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.alata(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                     color: Colors.black,
@@ -261,7 +261,7 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
                       value == null ? 'Please select a university' : null,
                   decoration: InputDecoration(
                     hintText: 'NTUA',
-                    hintStyle: GoogleFonts.inter(color: Colors.grey[400]),
+                    hintStyle: GoogleFonts.alata(color: Colors.grey[400]),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 14,
@@ -282,7 +282,7 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
                 // School Dropdown
                 Text(
                   'School',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.alata(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                     color: Colors.black,
@@ -306,7 +306,7 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
                       value == null ? 'Please select a school' : null,
                   decoration: InputDecoration(
                     hintText: 'ECE',
-                    hintStyle: GoogleFonts.inter(color: Colors.grey[400]),
+                    hintStyle: GoogleFonts.alata(color: Colors.grey[400]),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 14,
@@ -342,7 +342,7 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
                         ? const CircularProgressIndicator(color: Colors.white)
                         : Text(
                             'Complete Registration',
-                            style: GoogleFonts.inter(
+                            style: GoogleFonts.alata(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
                             ),

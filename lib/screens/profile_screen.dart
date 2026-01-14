@@ -21,7 +21,7 @@ class ProfileScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(
           'StudyProfile',
-          style: GoogleFonts.inter(
+          style: GoogleFonts.alata(
             fontSize: 24,
             fontWeight: FontWeight.bold,
             color: Colors.black,
@@ -87,7 +87,7 @@ class ProfileScreen extends StatelessWidget {
                       : 'About ${user.firstName}',
                   content: Text(
                     user.aboutYou.isNotEmpty ? user.aboutYou : "No bio yet.",
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.alata(
                       fontSize: 14,
                       color: Colors.black87,
                     ),
@@ -100,7 +100,7 @@ class ProfileScreen extends StatelessWidget {
                     user.currentlyStudying.isNotEmpty
                         ? user.currentlyStudying
                         : "Nothing specified.",
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.alata(
                       fontSize: 14,
                       color: Colors.black87,
                     ),
@@ -158,14 +158,14 @@ class ProfileScreen extends StatelessWidget {
           children: [
             Text(
               user.fullName,
-              style: GoogleFonts.inter(
+              style: GoogleFonts.alata(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
               ),
             ),
             Text(
               '${user.school} ${user.university}',
-              style: GoogleFonts.inter(
+              style: GoogleFonts.alata(
                 fontSize: 14,
                 color: Colors.grey[600],
                 fontWeight: FontWeight.w500,
@@ -234,7 +234,7 @@ class ProfileScreen extends StatelessWidget {
         children: [
           Text(
             title,
-            style: GoogleFonts.inter(
+            style: GoogleFonts.alata(
               fontSize: 16,
               fontWeight: FontWeight.bold,
               color: Colors.black,
@@ -284,7 +284,7 @@ class ProfileScreen extends StatelessWidget {
     if (user.thoughts.isEmpty) {
       return Text(
         "No thoughts yet.",
-        style: GoogleFonts.inter(color: Colors.grey[700]),
+        style: GoogleFonts.alata(color: Colors.grey[700]),
       );
     }
     return Row(
@@ -292,11 +292,11 @@ class ProfileScreen extends StatelessWidget {
       children: [
         Text(
           user.thoughts.first,
-          style: GoogleFonts.inter(color: Colors.grey[700]),
+          style: GoogleFonts.alata(color: Colors.grey[700]),
         ),
         Text(
           "19/11",
-          style: GoogleFonts.inter(color: Colors.grey[500], fontSize: 12),
+          style: GoogleFonts.alata(color: Colors.grey[500], fontSize: 12),
         ),
       ],
     );
@@ -306,7 +306,7 @@ class ProfileScreen extends StatelessWidget {
     if (user.momentUrls.isEmpty) {
       return Text(
         "No moments yet.",
-        style: GoogleFonts.inter(color: Colors.grey[700]),
+        style: GoogleFonts.alata(color: Colors.grey[700]),
       );
     }
     return SizedBox(
@@ -337,7 +337,7 @@ class ProfileScreen extends StatelessWidget {
     if (user.achievements.isEmpty) {
       return Text(
         "No achievements yet.",
-        style: GoogleFonts.inter(color: Colors.grey[700]),
+        style: GoogleFonts.alata(color: Colors.grey[700]),
       );
     }
     // Showing hardcoded dummy for Visual Matching if requested, or real data
@@ -355,11 +355,11 @@ class ProfileScreen extends StatelessWidget {
               // But I should code it to show data if present.
               Text(
                 "You're so focused - Tier 2",
-                style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+                style: GoogleFonts.alata(fontWeight: FontWeight.bold),
               ),
               Text(
                 "You stayed in focus for 1 hour",
-                style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600]),
+                style: GoogleFonts.alata(fontSize: 12, color: Colors.grey[600]),
               ),
             ],
           ),

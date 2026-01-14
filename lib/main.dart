@@ -8,6 +8,8 @@ import 'firebase_options.dart';
 
 import 'auth_wrapper.dart';
 
+import 'package:google_fonts/google_fonts.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
@@ -32,6 +34,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFBEA1F7)),
         useMaterial3: true,
+        textTheme: GoogleFonts.alataTextTheme(),
       ),
       home: const AuthWrapper(),
       routes: {
