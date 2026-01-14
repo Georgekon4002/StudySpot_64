@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/user_model.dart';
 import 'edit_profile_screen.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   final String userId;
   final bool isCurrentUser;
 
@@ -13,6 +14,57 @@ class ProfileScreen extends StatelessWidget {
     required this.userId,
     this.isCurrentUser = false,
   });
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  // We rely on Firestore stream for UI updates now
+
+  Future<void> _toggleFriendship() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+
+    try {
+      final userRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser.uid);
+      final userSnapshot = await userRef.get();
+      if (!userSnapshot.exists) return;
+
+      final userData = UserModel.fromFirestore(userSnapshot);
+      final isFriend = userData.friendIds.contains(widget.userId);
+
+      if (isFriend) {
+        // Remove friend
+        await userRef.update({
+          'friendIds': FieldValue.arrayRemove([widget.userId]),
+        });
+      } else {
+        // Add friend
+        await userRef.update({
+          'friendIds': FieldValue.arrayUnion([widget.userId]),
+        });
+
+        // Send Notification
+        await FirebaseFirestore.instance.collection('notifications').add({
+          'recipientId': widget.userId,
+          'senderId': currentUser.uid,
+          'type': 'friend_add',
+          'timestamp': FieldValue.serverTimestamp(),
+          'read': false,
+        });
+      }
+    } catch (e) {
+      debugPrint("Error toggling friendship: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error updating friend: $e')));
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +86,7 @@ class ProfileScreen extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          if (isCurrentUser)
+          if (widget.isCurrentUser) // Changed to widget.isCurrentUser
             IconButton(
               icon: const Icon(Icons.edit, color: Colors.black),
               onPressed: () {
@@ -51,20 +103,14 @@ class ProfileScreen extends StatelessWidget {
       body: StreamBuilder<DocumentSnapshot>(
         stream: FirebaseFirestore.instance
             .collection('users')
-            .doc(userId)
+            .doc(widget.userId) // Changed to widget.userId
             .snapshots(),
         builder: (context, snapshot) {
-          // We'll show a loading indicator only if we really have no data and are waiting
-          // But to avoid flickering if we have cached data, we rely on stream
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
           if (!snapshot.hasData || !snapshot.data!.exists) {
-            // Fallback for new users or missing data
-            // We can return a default user view or just empty
-            // For the sake of the demo, let's create a default user model
-            // so the UI doesn't crash.
             return const Center(child: Text("Profile not found"));
           }
 
@@ -76,13 +122,13 @@ class ProfileScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildHeader(user),
-                if (!isCurrentUser) ...[
+                if (!widget.isCurrentUser) ...[ // Changed to widget.isCurrentUser
                   const SizedBox(height: 16),
                   _buildActionButtons(user),
                 ],
                 const SizedBox(height: 24),
                 _buildSection(
-                  title: isCurrentUser
+                  title: widget.isCurrentUser // Changed to widget.isCurrentUser
                       ? 'About You'
                       : 'About ${user.firstName}',
                   content: Text(
@@ -108,28 +154,28 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 _buildSection(
-                  title: isCurrentUser
+                  title: widget.isCurrentUser // Changed to widget.isCurrentUser
                       ? 'Your Friends'
                       : "${user.firstName}’s Friends",
                   content: _buildFriendsList(user),
                 ),
                 const SizedBox(height: 16),
                 _buildSection(
-                  title: isCurrentUser
+                  title: widget.isCurrentUser // Changed to widget.isCurrentUser
                       ? 'Your Thoughts'
                       : "${user.firstName}’s Thoughts",
                   content: _buildThoughts(user),
                 ),
                 const SizedBox(height: 16),
                 _buildSection(
-                  title: isCurrentUser
+                  title: widget.isCurrentUser // Changed to widget.isCurrentUser
                       ? 'Your Moments'
                       : "${user.firstName}’s Moments",
                   content: _buildMoments(user),
                 ),
                 const SizedBox(height: 16),
                 _buildSection(
-                  title: isCurrentUser
+                  title: widget.isCurrentUser // Changed to widget.isCurrentUser
                       ? 'Your Achievements'
                       : "${user.firstName}’s Achievements",
                   content: _buildAchievements(user),
@@ -148,8 +194,6 @@ class ProfileScreen extends StatelessWidget {
         CircleAvatar(
           radius: 35,
           backgroundColor: Colors.grey[200],
-          // Utilize a placeholder image if momentUrls is empty or specific logic
-          // For now using standard placeholder
           backgroundImage: const NetworkImage('https://i.pravatar.cc/150'),
         ),
         const SizedBox(width: 16),
@@ -177,47 +221,67 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildActionButtons(UserModel user) {
-    return Row(
-      children: [
-        Expanded(
-          child: ElevatedButton.icon(
-            onPressed: () {
-              // Add friend logic placeholder
-            },
-            icon: const Icon(Icons.person_add, size: 18),
-            label: const Text('Add Friend'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFFECC9),
-              foregroundColor: const Color(0xFFFF7B00),
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
+  // Updated to allow async building of button state
+  Widget _buildActionButtons(UserModel profileUser) {
+    if (widget.isCurrentUser) return const SizedBox.shrink();
+
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return const SizedBox.shrink();
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser.uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
+
+        final currentUserData = UserModel.fromFirestore(snapshot.data!);
+        final isFriend = currentUserData.friendIds.contains(widget.userId);
+
+        return Row(
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _toggleFriendship,
+                icon: Icon(isFriend ? Icons.check : Icons.person_add, size: 18),
+                label: Text(isFriend ? 'Friends' : 'Add Friend'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isFriend
+                      ? const Color(0xFF81D4FA) // Light Blue
+                      : const Color(0xFFFFECC9), // Original Beige
+                  foregroundColor:
+                      isFriend ? Colors.white : const Color(0xFFFF7B00),
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
               ),
             ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: ElevatedButton.icon(
-            onPressed: () {
-              // Message logic placeholder
-            },
-            icon: const Icon(Icons.message_outlined, size: 18),
-            label: const Text('Message'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFC9FFCF),
-              foregroundColor: const Color(0xFF2E7D32),
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  // Message logic placeholder
+                },
+                icon: const Icon(Icons.message_outlined, size: 18),
+                label: const Text('Message'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFC9FFCF),
+                  foregroundColor: const Color(0xFF2E7D32),
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
               ),
             ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 
@@ -248,39 +312,109 @@ class ProfileScreen extends StatelessWidget {
   }
 
   Widget _buildFriendsList(UserModel user) {
-    // Placeholder friends UI to match screenshot
-    return Row(
-      children:
-          List.generate(
-            5,
-            (index) => const Padding(
-              padding: EdgeInsets.only(right: 8.0),
-              child: CircleAvatar(
-                radius: 20,
-                backgroundColor: Colors.black87,
-                child: Icon(Icons.person, color: Colors.white, size: 20),
-              ),
+    if (user.friendIds.isEmpty) {
+      return Text(
+        "No Friends",
+        style: GoogleFonts.alata(color: Colors.grey[700]),
+      );
+    }
+
+    return FutureBuilder<List<UserModel>>(
+      future: _fetchFriends(user.friendIds),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
             ),
-          )..add(
-            Container(
-              margin: const EdgeInsets.only(left: 8),
-              child: const Row(
-                children: [
-                  Icon(Icons.circle, size: 6, color: Colors.black),
-                  SizedBox(width: 4),
-                  Icon(Icons.circle, size: 6, color: Colors.grey),
-                ],
-              ),
-            ),
+          );
+        }
+
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+           return Text(
+            "No Friends", // Should ideally match emptiness check but just safe
+            style: GoogleFonts.alata(color: Colors.grey[700]),
+          );
+        }
+
+        final friends = snapshot.data!;
+
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: friends.map((friend) {
+              return GestureDetector(
+                onTap: () {
+                   Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ProfileScreen(
+                        userId: friend.uid,
+                         // Needs check if it's me
+                         isCurrentUser: friend.uid == FirebaseAuth.instance.currentUser?.uid,
+                      ),
+                    ),
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 12.0),
+                  child: Column(
+                    children: [
+                      CircleAvatar(
+                        radius: 24,
+                        backgroundColor: Colors.grey[300],
+                         backgroundImage: const NetworkImage('https://i.pravatar.cc/150'),
+                      ),
+                      const SizedBox(height: 4),
+                       Text(
+                        friend.firstName,
+                         style: GoogleFonts.alata(fontSize: 12, color: Colors.black87),
+                       ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
           ),
+        );
+      },
     );
   }
 
+  Future<List<UserModel>> _fetchFriends(List<String> friendIds) async {
+    if (friendIds.isEmpty) return [];
+
+    try {
+      // Create chunks of 10 for 'whereIn' query limit if needed, but for now simple
+      // Or simply fetch by IDs. 
+      // Firestore 'whereIn' is limited to 10. If list is large, fetch individually or loops.
+      // Simplest for MVP: Fetch all users where ID is in list.
+      
+      final chunks = <List<String>>[];
+      for (var i = 0; i < friendIds.length; i += 10) {
+        chunks.add(friendIds.sublist(i, i + 10 > friendIds.length ? friendIds.length : i + 10));
+      }
+
+      final List<UserModel> friends = [];
+      for (final chunk in chunks) {
+         final snapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .where(FieldPath.documentId, whereIn: chunk)
+            .get();
+          
+          friends.addAll(snapshot.docs.map((doc) => UserModel.fromFirestore(doc)));
+      }
+      return friends;
+
+    } catch (e) {
+      debugPrint("Error fetching friends: $e");
+      return [];
+    }
+  }
+
   Widget _buildThoughts(UserModel user) {
-    // Use hardcoded if empty to match screenshot desire "empty... so they will be empty"
-    // But user asked for "Automatically filled... empty"
-    // Screenshot has "Need a break ASAP".
-    // If user has thoughts, show them.
     if (user.thoughts.isEmpty) {
       return Text(
         "No thoughts yet.",
@@ -340,7 +474,6 @@ class ProfileScreen extends StatelessWidget {
         style: GoogleFonts.alata(color: Colors.grey[700]),
       );
     }
-    // Showing hardcoded dummy for Visual Matching if requested, or real data
     return Row(
       children: [
         const Icon(Icons.emoji_events, color: Colors.purple, size: 32),
@@ -349,10 +482,6 @@ class ProfileScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Just showing static for now as "hasn't been implemented yet so they will be empty"
-              // But prompt said "hasn't been implemented yet so they will be empty"
-              // The screenshot shows data. I will trust the prompt "they will be empty" mostly.
-              // But I should code it to show data if present.
               Text(
                 "You're so focused - Tier 2",
                 style: GoogleFonts.alata(fontWeight: FontWeight.bold),

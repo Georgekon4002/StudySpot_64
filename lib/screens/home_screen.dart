@@ -269,7 +269,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           RichText(
                             text: TextSpan(
                               style: GoogleFonts.alata(
-                                fontSize: 28,
+                                fontSize: 34,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.black,
                               ),
@@ -278,7 +278,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 TextSpan(
                                   text: 'Spot',
                                   style: GoogleFonts.alata(
-                                    fontSize: 28,
+                                    fontSize: 34,
                                     fontWeight: FontWeight.bold,
                                     color: orangeColor,
                                   ),
@@ -357,8 +357,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 ],
                             child: Container(
-                              width: 52, // Increased from 40
-                              height: 52, // Increased from 40
+                              width: 60, // Increased
+                              height: 60, // Increased
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: Colors.grey[300],
@@ -370,7 +370,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               child: Icon(
                                 Icons.person,
                                 color: Colors.grey[600],
-                                size: 32, // Increased from 24
+                                size: 38, // Increased
                               ),
                             ),
                           ),
@@ -385,46 +385,52 @@ class _HomeScreenState extends State<HomeScreen> {
                         vertical: 12,
                       ),
                       child: Row(
-                        crossAxisAlignment: CrossAxisAlignment
-                            .center, // Ensure vertical alignment
+                        crossAxisAlignment: CrossAxisAlignment.center, // Ensure vertical alignment
                         children: [
-                          // Circular Progress Indicator
-                          SizedBox(
-                            width: 60,
-                            height: 60,
-                            child: Stack(
-                              children: [
-                                // Background circle
-                                CircularProgressIndicator(
-                                  value: 1.0,
-                                  strokeWidth: 6,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    beigeColor,
-                                  ),
-                                  backgroundColor: Colors.transparent,
-                                ),
-                                // Progress arc
-                                CircularProgressIndicator(
-                                  value: progress,
-                                  strokeWidth: 6,
-                                  valueColor:
-                                      const AlwaysStoppedAnimation<Color>(
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              // Circular Progress Indicator
+                              SizedBox(
+                                width: 60,
+                                height: 60,
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  fit: StackFit.expand,
+                                  children: [
+                                    // Background circle
+                                    CircularProgressIndicator(
+                                      value: 1.0,
+                                      strokeWidth: 8,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        beigeColor,
+                                      ),
+                                      backgroundColor: Colors.transparent,
+                                    ),
+                                    // Progress arc
+                                    CircularProgressIndicator(
+                                      value: progress,
+                                      strokeWidth: 8,
+                                      valueColor:
+                                          const AlwaysStoppedAnimation<Color>(
                                         orangeColor,
                                       ),
-                                  backgroundColor: Colors.transparent,
+                                      backgroundColor: Colors.transparent,
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          // Count Text
-                          Text(
-                            '$occupiedSpots/$totalSpots',
-                            style: GoogleFonts.alata(
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
-                            ),
+                              ),
+                              const SizedBox(width: 15),
+                              // Count Text
+                              Text(
+                                '$occupiedSpots/$totalSpots',
+                                style: GoogleFonts.alata(
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            ],
                           ),
                           const Spacer(),
 
@@ -557,23 +563,27 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ],
                 ),
-                child: FloatingActionButton(
-                  onPressed: () {
-                    // Show menu if there are available seats OR user is seated
-                    if (_hasAvailableSeats() || _isSeated) {
-                      _showFabMenu();
-                    }
-                  },
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  child: Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: orangeColor,
+                child: SizedBox(
+                  width: 75,
+                  height: 75,
+                  child: FloatingActionButton(
+                    onPressed: () {
+                      // Show menu if there are available seats OR user is seated
+                      if (_hasAvailableSeats() || _isSeated) {
+                        _showFabMenu();
+                      }
+                    },
+                    backgroundColor: Colors.transparent,
+                    elevation: 0,
+                    child: Container(
+                      width: 75,
+                      height: 75,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: orangeColor,
+                      ),
+                      child: const Icon(Icons.add, color: Colors.white, size: 40),
                     ),
-                    child: const Icon(Icons.add, color: Colors.white),
                   ),
                 ),
               ),

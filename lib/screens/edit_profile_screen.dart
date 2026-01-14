@@ -16,8 +16,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _firstNameController;
   late TextEditingController
   _lastNameController; // Not in screenshot explicitly as field but in name
-  late TextEditingController _schoolController;
-  late TextEditingController _universityController;
+  // Dropdown state
+  String? _selectedSchool;
+  String? _selectedUni;
+  final List<String> _uniOptions = ['NTUA', 'AUEB', 'UoA', 'UNIPI'];
+  final List<String> _schoolOptions = [
+    'ECE',
+    'CIVIL',
+    'MECH',
+    'CHEM',
+    'ARCH',
+  ];
   late TextEditingController _aboutController;
   late TextEditingController _studyingController;
   bool _isLoading = true;
@@ -27,8 +36,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.initState();
     _firstNameController = TextEditingController();
     _lastNameController = TextEditingController();
-    _schoolController = TextEditingController();
-    _universityController = TextEditingController();
+    // Dropdowns don't need controllers
     _aboutController = TextEditingController();
     _studyingController = TextEditingController();
     _loadUserData();
@@ -45,8 +53,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         final userData = UserModel.fromFirestore(doc);
         _firstNameController.text = userData.firstName;
         _lastNameController.text = userData.lastName;
-        _schoolController.text = userData.school;
-        _universityController.text = userData.university;
+        
+        // Handle potential mismatch safely
+        if (_schoolOptions.contains(userData.school)) {
+          _selectedSchool = userData.school;
+        } else {
+           // Optional: handle case where existing data isn't in options
+           // For now, we leave it null or maybe add it to options dynamically?
+           // Let's stick to null (user must re-select) or just not show it if invalid
+        }
+        
+        if (_uniOptions.contains(userData.university)) {
+           _selectedUni = userData.university;
+        }
         _aboutController.text = userData.aboutYou;
         _studyingController.text = userData.currentlyStudying;
       }
@@ -70,8 +89,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       firstName: _firstNameController.text,
       lastName:
           _lastNameController.text, // Assuming keeping last name or combining
-      school: _schoolController.text,
-      university: _universityController.text,
+      school: _selectedSchool ?? '',
+      university: _selectedUni ?? '',
       aboutYou: _aboutController.text,
       currentlyStudying: _studyingController.text,
       // Keep existing arrays or empty
@@ -170,13 +189,89 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     Row(
                       children: [
                         Expanded(
-                          child: _buildLabelInput("School", _schoolController),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                                DropdownButtonFormField<String>(
+                                  value: _selectedSchool,
+                                  items: _schoolOptions.map((String value) {
+                                    return DropdownMenuItem<String>(
+                                      value: value,
+                                      child: Text(value),
+                                    );
+                                  }).toList(),
+                                  onChanged: (newValue) {
+                                    setState(() {
+                                      _selectedSchool = newValue;
+                                    });
+                                  },
+                                  decoration: InputDecoration(
+                                    labelText: 'School',
+                                    alignLabelWithHint: true,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: const BorderSide(color: Colors.grey),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: const BorderSide(color: Colors.grey),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: const BorderSide(color: Colors.black),
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                   // Match style with _buildLabelInput
+                                   style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black),
+                                ),
+                            ],
+                          ),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
-                          child: _buildLabelInput(
-                            "University",
-                            _universityController,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                             children: [
+                                DropdownButtonFormField<String>(
+                                  value: _selectedUni,
+                                  items: _uniOptions.map((String value) {
+                                    return DropdownMenuItem<String>(
+                                      value: value,
+                                      child: Text(value),
+                                    );
+                                  }).toList(),
+                                  onChanged: (newValue) {
+                                    setState(() {
+                                      _selectedUni = newValue;
+                                    });
+                                  },
+                                  decoration: InputDecoration(
+                                    labelText: 'University',
+                                    alignLabelWithHint: true,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: const BorderSide(color: Colors.grey),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: const BorderSide(color: Colors.grey),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: const BorderSide(color: Colors.black),
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                  style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black),
+                                ),
+                             ],
                           ),
                         ),
                       ],
