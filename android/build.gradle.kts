@@ -22,8 +22,3 @@ subprojects {
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
-
-plugins {
-    // Ορίστε την έκδοση ΕΔΩ και μόνο εδώ
-    id("com.google.gms.google-services") version "4.4.1" apply false
-}
