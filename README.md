@@ -1,16 +1,27 @@
-# studyspot_64
+# StudySpot - README
+Μάθημα: Αλληλεπίδραση Ανθρώπου - Υπολογιστή (2025-2026)
+Ομάδα: 64
+Μέλη: Κωνσταντόπουλος Γεώργιος(03122104) - Πολυμέρη Βασιλική-Σπυριδούλα(03122641)
 
-A new Flutter project.
+# Οδηγίες Εγκατάστασης και Χρήσης
 
-## Getting Started
+ Εγκατάσταση (Android)
+ Αρχείο APK: Εντοπίστε το αρχείο app-release.apk στον φάκελο της παράδοσης.
 
-This project is a starting point for a Flutter application.
+Μεταφορά: Μεταφέρετε το αρχείο στο Android κινητό σας.
 
-A few resources to get you started if this is your first Flutter project:
+Εγκατάσταση: Πατήστε πάνω στο αρχείο από τη διαχείριση αρχείων του κινητού σας.
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+Η εφαρμογή απαιτεί ενεργή σύνδεση στο Internet για να λειτουργήσει το Login και η ενημέρωση των θέσεων (Firebase).
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+# Χρήση της Εφαρμογής (Σενάριο)
+Είσοδος: Μπορείτε να δημιουργήσετε νέο λογαριασμό (Create Account) ή να συνδεθείτε με τον παρακάτω δοκιμαστικό λογαριασμό:
+
+Email: test@example.com
+Password: 123456
+
+Κεντρική Οθόνη (Home): Δείτε τη διαθεσιμότητα των θέσεων σε πραγματικό χρόνο. Ο κύκλος στο πάνω μέρος δείχνει τη συνολική πληρότητα.
+
+Check-in (QR Code): Χρησιμοποιήστε το εικονίδιο της κάμερας στην μπάρα πλοήγησης για να προσομοιώσετε το σκανάρισμα ενός QR code στο τραπέζι σας (Υποσύστημα Κάμερας).
+
+# Διαφοροποίηση από το Πρωτότυπο (Β' Φάση)
