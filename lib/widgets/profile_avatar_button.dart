@@ -44,74 +44,31 @@ class ProfileAvatarButton extends StatelessWidget {
           );
         }
 
-        return PopupMenuButton<String>(
-          onSelected: (value) {
-            if (value == 'profile') {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ProfileScreen(
-                    userId: currentUser.uid,
-                    isCurrentUser: true,
-                  ),
+        return GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ProfileScreen(
+                  userId: currentUser.uid,
+                  isCurrentUser: true,
                 ),
-              );
-            } else if (value == 'logout') {
-              FirebaseAuth.instance.signOut().then((_) {
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(
-                    builder: (context) => const WelcomeWrapper(),
-                  ),
-                  (route) => false,
-                );
-              });
-            }
+              ),
+            );
           },
-          itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-            PopupMenuItem<String>(
-              value: 'profile',
-              child: Row(
-                children: [
-                  Icon(Icons.person, color: Colors.black87, size: 20),
-                  const SizedBox(width: 12),
-                  Text(
-                    'View Profile',
-                    style: GoogleFonts.alata(
-                      color: Colors.black87,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            PopupMenuItem<String>(
-              value: 'logout',
-              child: Row(
-                children: [
-                  Icon(Icons.logout, color: Colors.red[400], size: 20),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Sign Out',
-                    style: GoogleFonts.alata(
-                      color: Colors.red[400],
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
           child: Container(
-            width: 50, // Adjusted size to fit header nicely
+            width: 50,
             height: 50,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: Colors.grey[200],
               border: Border.all(color: Colors.grey[300]!, width: 1),
-              image: DecorationImage(
-                image: backgroundImage!,
-                fit: BoxFit.cover,
-              ),
+              image: backgroundImage != null
+                  ? DecorationImage(
+                      image: backgroundImage,
+                      fit: BoxFit.cover,
+                    )
+                  : null,
             ),
           ),
         );

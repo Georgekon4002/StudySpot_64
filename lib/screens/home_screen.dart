@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -36,6 +37,11 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isProcessingReservation =
       false; // Lock to prevent multiple auto-reservations
 
+  StreamSubscription? _userSubscription;
+  StreamSubscription? _spotsSubscription;
+  Set<String> _friendIds = {};
+  Set<String> _friendsOnSpot = {}; // Friends currently in a seat
+
   // Color constants
   static const Color orangeColor = Color(0xFFFF7B00);
   static const Color beigeColor = Color(0xFFFFECC9);
@@ -50,11 +56,97 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // No more local queue timer, we listen to Firestore
+    _setupHapticListeners();
+  }
+
+  void _setupHapticListeners() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      // 1. Listen for Friends (Added as friend)
+      _userSubscription = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .snapshots()
+          .listen((snapshot) {
+        if (snapshot.exists) {
+          final data = snapshot.data();
+          if (data != null) {
+            final newFriendIds = Set<String>.from(data['friendIds'] ?? []);
+            
+            // "When you have been added as a friend" -> Heavy Impact
+            if (_friendIds.isNotEmpty && newFriendIds.length > _friendIds.length) {
+               _triggerHeavyHaptic("You have a new friend! 🤝");
+            }
+            _friendIds = newFriendIds;
+          }
+        }
+      });
+
+      // 2. Listen for "Friend on the house"
+      _spotsSubscription = FirebaseFirestore.instance
+          .collection('study_spots')
+          .snapshots()
+          .listen((snapshot) {
+        final Set<String> currentFriendsHere = {};
+
+        for (var doc in snapshot.docs) {
+           // Basic parsing to find occupants
+           final data = doc.data();
+           final seatsMap = data['seats'] as Map<String, dynamic>? ?? {};
+           
+           seatsMap.forEach((key, value) {
+             if (value is Map<String, dynamic>) {
+               final userId = value['userId'];
+               final status = value['status'];
+               final timestamp = value['timestamp'] as Timestamp?;
+               
+               if (userId != null && _friendIds.contains(userId)) {
+                 bool isExpired = false;
+                 // Check expiry if reserved
+                 if (status == 'reserved' && timestamp != null) {
+                    final diff = DateTime.now().difference(timestamp.toDate());
+                    if (diff.inMinutes >= 30) isExpired = true;
+                 }
+                 
+                 if (!isExpired) {
+                   currentFriendsHere.add(userId);
+                 }
+               }
+             }
+           });
+        }
+
+        // Check for new arrivals
+        // If a friend is now here, who wasn't here before
+        final newArrivals = currentFriendsHere.difference(_friendsOnSpot);
+        if (_friendsOnSpot.isNotEmpty && newArrivals.isNotEmpty) {
+           _triggerHeavyHaptic("A friend is on the house! 🏠");
+        }
+        _friendsOnSpot = currentFriendsHere;
+      });
+    }
+  }
+
+  Future<void> _triggerHeavyHaptic(String message) async {
+    await HapticFeedback.heavyImpact();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            message,
+            style: GoogleFonts.alata(color: Colors.white),
+          ),
+          backgroundColor: Colors.black87,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
   @override
   void dispose() {
+    _userSubscription?.cancel();
+    _spotsSubscription?.cancel();
     _reservationTimer?.cancel();
     super.dispose();
   }
@@ -376,7 +468,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                         !_isSeated) {
                                       // Hide if seated
                                       return ElevatedButton(
-                                        onPressed: _enqueueUser,
+                                        onPressed: () {
+                                          HapticFeedback.lightImpact();
+                                          _enqueueUser();
+                                        },
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: orangeColor,
                                           foregroundColor: Colors.white,
@@ -621,6 +716,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // 3. Notify User
       if (mounted) {
+        await HapticFeedback.heavyImpact(); // Heavy vibration on assignment
         showDialog(
           context: context,
           barrierDismissible: false, // Force them to acknowledge
@@ -849,6 +945,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Center(
       child: GestureDetector(
         onTapDown: (details) {
+          HapticFeedback.lightImpact(); // Tactile feedback
           // Case 1: Empty -> Reserve
           if (isEmpty) {
             if (_isSeated) {
@@ -1057,12 +1154,12 @@ class _HomeScreenState extends State<HomeScreen> {
     if (remaining.isNegative) {
       // Already expired
       if (mounted) {
-        _leaveSeat();
+        _handleReservationExpired();
       }
     } else {
       _reservationTimer = Timer(remaining, () {
         if (mounted) {
-          _leaveSeat();
+          _handleReservationExpired();
         }
       });
     }
@@ -1080,6 +1177,11 @@ class _HomeScreenState extends State<HomeScreen> {
       }
       setState(() {});
     });
+  }
+
+  Future<void> _handleReservationExpired() async {
+    await _triggerHeavyHaptic("Reservation expired ⏳");
+    _leaveSeat();
   }
 
   bool _hasAvailableSeats() {
@@ -1320,6 +1422,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _confirmSeatOccupancy(spotIndex, seatIndex);
 
         if (mounted) {
+          HapticFeedback.lightImpact(); // Confirm feedback
           showDialog(
             context: context,
             builder: (_) => AlertDialog(

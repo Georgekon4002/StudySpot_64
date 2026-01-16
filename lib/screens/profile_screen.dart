@@ -6,6 +6,7 @@ import '../models/user_model.dart';
 import 'edit_profile_screen.dart';
 import 'studying_users_screen.dart';
 import 'colleagues_screen.dart';
+import 'welcome_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String userId;
@@ -88,7 +89,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          if (widget.isCurrentUser) // Changed to widget.isCurrentUser
+          if (widget.isCurrentUser) ...[
             IconButton(
               icon: const Icon(Icons.edit, color: Colors.black),
               onPressed: () {
@@ -100,6 +101,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 );
               },
             ),
+            IconButton(
+              icon: const Icon(Icons.logout, color: Colors.red),
+              onPressed: () {
+                FirebaseAuth.instance.signOut().then((_) {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(
+                      builder: (context) => const WelcomeWrapper(),
+                    ),
+                    (route) => false,
+                  );
+                });
+              },
+            ),
+          ],
         ],
       ),
       body: StreamBuilder<DocumentSnapshot>(
