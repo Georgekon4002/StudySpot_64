@@ -101,19 +101,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 );
               },
             ),
-            IconButton(
-              icon: const Icon(Icons.logout, color: Colors.red),
-              onPressed: () {
-                FirebaseAuth.instance.signOut().then((_) {
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(
-                      builder: (context) => const WelcomeWrapper(),
-                    ),
-                    (route) => false,
-                  );
-                });
-              },
-            ),
           ],
         ],
       ),
@@ -234,6 +221,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       : "${user.firstName}’s Achievements",
                   content: _buildAchievements(user),
                 ),
+                if (widget.isCurrentUser) ...[
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                         FirebaseAuth.instance.signOut().then((_) {
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute(
+                              builder: (context) => const WelcomeWrapper(),
+                            ),
+                            (route) => false,
+                          );
+                        });
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red[50],
+                        foregroundColor: Colors.red,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(color: Colors.red.shade200),
+                        ),
+                      ),
+                      child: Text(
+                        'Sign Out',
+                        style: GoogleFonts.alata(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
               ],
             ),
           );

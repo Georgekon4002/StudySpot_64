@@ -41,6 +41,8 @@ class _HomeScreenState extends State<HomeScreen> {
   StreamSubscription? _spotsSubscription;
   Set<String> _friendIds = {};
   Set<String> _friendsOnSpot = {}; // Friends currently in a seat
+  bool _isFirstFriendLoad = true;
+  bool _isFirstSpotLoad = true;
 
   // Color constants
   static const Color orangeColor = Color(0xFFFF7B00);
@@ -74,10 +76,18 @@ class _HomeScreenState extends State<HomeScreen> {
             final newFriendIds = Set<String>.from(data['friendIds'] ?? []);
             
             // "When you have been added as a friend" -> Heavy Impact
-            if (_friendIds.isNotEmpty && newFriendIds.length > _friendIds.length) {
+            // If it's NOT the first load, and the new list is larger than the old list
+            // Or if first load was empty and now we have friends? No, only on increase during session.
+            // Actually user wants "When you have been added". If I open app and I have a new friend since last time?
+            // The requirement likely implies real-time updates.
+            // Logic: If NOT first load, and size increased.
+            if (!_isFirstFriendLoad && newFriendIds.length > _friendIds.length) {
+               print("DEBUG: Friend Added Triggered");
                _triggerHeavyHaptic("You have a new friend! 🤝");
             }
+            
             _friendIds = newFriendIds;
+            _isFirstFriendLoad = false;
           }
         }
       });
@@ -119,10 +129,21 @@ class _HomeScreenState extends State<HomeScreen> {
         // Check for new arrivals
         // If a friend is now here, who wasn't here before
         final newArrivals = currentFriendsHere.difference(_friendsOnSpot);
-        if (_friendsOnSpot.isNotEmpty && newArrivals.isNotEmpty) {
-           _triggerHeavyHaptic("A friend is on the house! 🏠");
+        
+        if (newArrivals.isNotEmpty) {
+           if (_isFirstSpotLoad) {
+               // First load: Friend is already here
+               print("DEBUG: Friend Already Here Triggered");
+               _triggerHeavyHaptic("Your friends are already studying here! 🏠");
+           } else {
+               // Subsequent update: Friend just arrived
+               print("DEBUG: Friend Arrival Triggered");
+               _triggerHeavyHaptic("A friend is on the house! 🏠");
+           }
         }
+        
         _friendsOnSpot = currentFriendsHere;
+        _isFirstSpotLoad = false;
       });
     }
   }
@@ -141,6 +162,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     }
+    print("DEBUG: Heavy Haptic Triggered: $message");
   }
 
   @override
@@ -248,7 +270,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       if (status == 'occupied' || status == 'reserved') {
                         currentOccupied++;
                         isTaken = true;
-                        seatVal = {'status': status, 'userId': userId};
+                        seatVal = {
+                          'status': status,
+                          'userId': userId,
+                          'timestamp': timestamp,
+                          'profilePicUrl': seatData['profilePicUrl'],
+                        };
                       }
                     }
                     // If isExpired is true, we treat it as free (seatVal remains null/default, isTaken remains false)
@@ -716,6 +743,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // 3. Notify User
       if (mounted) {
+        print("DEBUG: Auto-Reserve Heavy Haptic Triggered");
         await HapticFeedback.heavyImpact(); // Heavy vibration on assignment
         showDialog(
           context: context,
@@ -868,11 +896,21 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     } else if (isReserved) {
-      if (isUserReserved && _reservationStartTime != null) {
+      DateTime? timestamp;
+      if (seatState is Map && seatState['timestamp'] is Timestamp) {
+        timestamp = (seatState['timestamp'] as Timestamp).toDate();
+      } else if (isUserReserved && _reservationStartTime != null) {
+        timestamp = _reservationStartTime;
+      }
+
+      // If we have a timestamp, show the timer
+      if (timestamp != null) {
         final now = DateTime.now();
-        final elapsed = now.difference(_reservationStartTime!);
+        final elapsed = now.difference(timestamp);
         final remaining = const Duration(minutes: 30) - elapsed;
         final progress = remaining.inSeconds / (30 * 60);
+
+        final timerColor = isUserReserved ? Colors.red : Colors.black;
 
         seatWidget = SizedBox(
           width: 42,
@@ -886,8 +924,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: CircularProgressIndicator(
                   value: progress.clamp(0.0, 1.0),
                   strokeWidth: 3,
-                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.red),
-                  backgroundColor: Colors.red.withOpacity(0.2),
+                  valueColor: AlwaysStoppedAnimation<Color>(timerColor),
+                  backgroundColor: timerColor.withOpacity(0.2),
                 ),
               ),
               Container(
@@ -895,7 +933,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 height: 34,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: orangeColor,
+                  color: Colors.grey[300], // Light grey for reserved
                   border: Border.all(color: Colors.white, width: 1),
                   image: (profilePicUrl != null && profilePicUrl.isNotEmpty)
                       ? DecorationImage(
@@ -912,12 +950,13 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       } else {
+        // Fallback if no timestamp
         seatWidget = Container(
           width: 34,
           height: 34,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: orangeColor,
+            color: Colors.grey[300], // Light grey for reserved
             image: (profilePicUrl != null && profilePicUrl.isNotEmpty)
                 ? DecorationImage(
                     image: NetworkImage(profilePicUrl),
@@ -972,7 +1011,10 @@ class _HomeScreenState extends State<HomeScreen> {
           }
           // Case 3: Me -> Unreserve
           else if (isUserReserved) {
-            _showUnreserveMenu(context, details.globalPosition);
+            // Only allow unreserve if NOT yet occupied (still in reservation phase)
+            if (_reservationStatus == 'reserved') {
+              _showUnreserveMenu(context, details.globalPosition);
+            }
           }
         },
         child: seatWidget,
