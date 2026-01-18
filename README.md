@@ -147,4 +147,4 @@
 
 Δημιουργήσαμε και ένα μικρής διάρκειας βίντεο - tutorial για το πως λειτουργεί η εφαρμογή που βρίσκεται στον παρακάτω σύνδεσμο:
 
-![Demo Video](https://drive.google.com/file/d/1y8HMG2s00P3BvLd5Z2QhPClyz6JNuOEr/view?usp=drive_link)
+[Demo Video](https://drive.google.com/file/d/1y8HMG2s00P3BvLd5Z2QhPClyz6JNuOEr/view?usp=drive_link)
