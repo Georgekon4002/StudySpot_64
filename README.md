@@ -36,8 +36,6 @@
    - [Android Studio](https://developer.android.com/studio)
    - [Flutter](https://flutter.dev)
    - [Git](https://git-scm.com)
-   - [GitHub](https://github.com)
-
 ---
 
 ## (ii) Οδηγός Εγκατάστασης
@@ -98,26 +96,26 @@
 | ![Intro](AppIcons/screenshots/introduction.jpg) | ![Welcome](AppIcons/screenshots/welcome.jpg) | ![LCreate](AppIcons/screenshots/create.jpg) |
 
 - Δημιουργήστε λογαριασμό ή χρησιμοποιήστε έναν υπάρχοντα. Μπορούν να χρησιμοποιηθούν και τα παρακάτω:
-   - email: testX@example.com
-   - password: password123
+   - email: **testX@example.com**
+   - password: **password123**
    *Όπου X ένα αριθμός από το 2 έως το 6. Υπάρχει account και χωρίς το Χ*
 
 | Home Screen | Reserve | Leave |
 |-------------|---------|-------|
 | ![Home](AppIcons/screenshots/home.jpg) | ![Reserve](AppIcons/screenshots/reserve.jpg) | ![Leave](AppIcons/screenshots/leave.jpg) |
 
-- Δοκιμάστε να πατήσετε μία άδεια θέση και να την κάνετε reserve για 30 λεπτά.
+- Δοκιμάστε να πατήσετε μία άδεια θέση και να την κάνετε **reserve για 30 λεπτά**.
 - Δοκιμάστε να σκανάρετε ένα από τα ακόλουθα [QR](https://drive.google.com/drive/folders/1EBYBLF5RCDEIcXP_vOozZaH6MIOC0p3u?usp=drive_link) όπως παράχθηκαν από το [qr.io](https://qr.io) πατώντας το Floating Button κάτω αριστερά:
 
 | Seat 1A | Seat 2B | Seat 5D | Seat 6C | Seat 8C | Seat 13A |
 |---------|---------|---------|---------|---------|---------|
 | ![Seat 1A](AppIcons/qr/Seat1A.png) | ![Seat 2B](AppIcons/qr/Seat2B.jpg) | ![Seat 5D](AppIcons/qr/Seat5D.jpg) | ![Seat 6C](AppIcons/qr/Seat6C.jpg) | ![Seat 8C](AppIcons/qr/Seat8C.jpg) | ![Seat 13A](AppIcons/qr/Seat13A.jpg) |
 
-- Αν η θέση είναι ελεύθερη θα δείτε το σχετικό μήνυμα και θα έχετε τη θέση δική σας και το status σας από Coming Soon θα γίνει Seated (μπορείτε να το δείτε στο Profile Screen πατώντας το Profile Icon). Τώρα το Floating Button είναι στη λειτουργία 'Leave' για να δηλώσετε την αποχώρησή σας.
+- Αν η θέση είναι ελεύθερη θα δείτε το σχετικό μήνυμα και θα έχετε τη θέση δική σας και το status σας από **Coming Soon** θα γίνει **Seated** (μπορείτε να το δείτε στο Profile Screen πατώντας το Profile Icon). Τώρα το Floating Button είναι στη λειτουργία **Leave** για να δηλώσετε την αποχώρησή σας.
 
-- Δοκιμάστε να επεξεργαστείτε το προφίλ σας, να δείτε ποιος άλλος από την σχολή σας έχει λογαριασμο και ποιός διαβάζει το ίδιο μάθημα με εσάς (επιλέγοντας πρώτα μάθημα στην επεξεργασία προφίλ -- Feature only available for ECE NTUA Students)
+- Δοκιμάστε να **επεξεργαστείτε το προφίλ σας**, να δείτε ποιος άλλος από την σχολή σας έχει λογαριασμο και **ποιός διαβάζει το ίδιο μάθημα με εσάς** (επιλέγοντας πρώτα μάθημα στην επεξεργασία προφίλ. *Feature only available for ECE NTUA Students*)
 
-- Δείτε άλλα προφίλ που μπορεί να βρίσκονται εντός του αναγνωστηρίου (αν είναι κάποιος φίλος σας η εφαρμογή φροντίζει να σας ειδοποιήσει) πατώντας το profile icon τους πάνω στη θέση τους. Προσθέστε τον χρήστη αυτόν ως φίλο ή απλώς δείτε το προφίλ του.
+- Δείτε άλλα προφίλ που μπορεί να βρίσκονται εντός του αναγνωστηρίου (αν είναι κάποιος φίλος σας η εφαρμογή φροντίζει να σας ειδοποιήσει) πατώντας το profile icon τους πάνω στη θέση τους. **Προσθέστε τον χρήστη αυτόν ως φίλο** ή απλώς δείτε το προφίλ του.
 
 | My Profile | Edit Profile | Profile |
 |------------|--------------|---------|
@@ -164,4 +162,6 @@
 
 ## (vi) Demo Video
 
-[![Demo Video](https://img.youtube.com/vi/VIDEO_ID/000000.jpg)](https://www.youtube.com/watch?v=VIDEO_ID)
+Δημιουργήσαμε και ένα μικρής διάρκειας βίντεο - tutorial για το πως λειτουργεί η εφαρμογή που βρίσκεται στον παρακάτω σύνδεσμο:
+
+![Demo Video](https://drive.google.com/file/d/1y8HMG2s00P3BvLd5Z2QhPClyz6JNuOEr/view?usp=drive_link)
