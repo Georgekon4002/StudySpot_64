@@ -70,81 +70,86 @@ class _HomeScreenState extends State<HomeScreen> {
           .doc(user.uid)
           .snapshots()
           .listen((snapshot) {
-        if (snapshot.exists) {
-          final data = snapshot.data();
-          if (data != null) {
-            final newFriendIds = Set<String>.from(data['friendIds'] ?? []);
-            
-            // "When you have been added as a friend" -> Heavy Impact
-            // If it's NOT the first load, and the new list is larger than the old list
-            // Or if first load was empty and now we have friends? No, only on increase during session.
-            // Actually user wants "When you have been added". If I open app and I have a new friend since last time?
-            // The requirement likely implies real-time updates.
-            // Logic: If NOT first load, and size increased.
-            if (!_isFirstFriendLoad && newFriendIds.length > _friendIds.length) {
-               print("DEBUG: Friend Added Triggered");
-               _triggerHeavyHaptic("You have a new friend! 🤝");
-            }
-            
-            _friendIds = newFriendIds;
-            _isFirstFriendLoad = false;
-          }
-        }
-      });
+            if (snapshot.exists) {
+              final data = snapshot.data();
+              if (data != null) {
+                final newFriendIds = Set<String>.from(data['friendIds'] ?? []);
 
-      // 2. Listen for "Friend on the house"
+                // "When you have been added as a friend" -> Heavy Impact
+                // If it's NOT the first load, and the new list is larger than the old list
+                // Or if first load was empty and now we have friends? No, only on increase during session.
+                // Actually user wants "When you have been added". If I open app and I have a new friend since last time?
+                // The requirement likely implies real-time updates.
+                // Logic: If NOT first load, and size increased.
+                if (!_isFirstFriendLoad &&
+                    newFriendIds.length > _friendIds.length) {
+                  print("DEBUG: Friend Added Triggered");
+                  _triggerHeavyHaptic("You have a new friend! 🤝");
+                }
+
+                _friendIds = newFriendIds;
+                _isFirstFriendLoad = false;
+              }
+            }
+          });
+
+      // 2. Listen for "Friend in the library"
       _spotsSubscription = FirebaseFirestore.instance
           .collection('study_spots')
           .snapshots()
           .listen((snapshot) {
-        final Set<String> currentFriendsHere = {};
+            final Set<String> currentFriendsHere = {};
 
-        for (var doc in snapshot.docs) {
-           // Basic parsing to find occupants
-           final data = doc.data();
-           final seatsMap = data['seats'] as Map<String, dynamic>? ?? {};
-           
-           seatsMap.forEach((key, value) {
-             if (value is Map<String, dynamic>) {
-               final userId = value['userId'];
-               final status = value['status'];
-               final timestamp = value['timestamp'] as Timestamp?;
-               
-               if (userId != null && _friendIds.contains(userId)) {
-                 bool isExpired = false;
-                 // Check expiry if reserved
-                 if (status == 'reserved' && timestamp != null) {
-                    final diff = DateTime.now().difference(timestamp.toDate());
-                    if (diff.inMinutes >= 30) isExpired = true;
-                 }
-                 
-                 if (!isExpired) {
-                   currentFriendsHere.add(userId);
-                 }
-               }
-             }
-           });
-        }
+            for (var doc in snapshot.docs) {
+              // Basic parsing to find occupants
+              final data = doc.data();
+              final seatsMap = data['seats'] as Map<String, dynamic>? ?? {};
 
-        // Check for new arrivals
-        // If a friend is now here, who wasn't here before
-        final newArrivals = currentFriendsHere.difference(_friendsOnSpot);
-        
-        if (newArrivals.isNotEmpty) {
-           if (_isFirstSpotLoad) {
-               // First load: Friend is already here
-               print("DEBUG: Friend Already Here Triggered");
-               _triggerHeavyHaptic("Your friends are already studying here! 🏠");
-           } else {
-               // Subsequent update: Friend just arrived
-               print("DEBUG: Friend Arrival Triggered");
-               _triggerHeavyHaptic("A friend is on the house! 🏠");
-           }
-        }
-        
-        _friendsOnSpot = currentFriendsHere;
-        _isFirstSpotLoad = false;
-      });
+              seatsMap.forEach((key, value) {
+                if (value is Map<String, dynamic>) {
+                  final userId = value['userId'];
+                  final status = value['status'];
+                  final timestamp = value['timestamp'] as Timestamp?;
+
+                  if (userId != null && _friendIds.contains(userId)) {
+                    bool isExpired = false;
+                    // Check expiry if reserved
+                    if (status == 'reserved' && timestamp != null) {
+                      final diff = DateTime.now().difference(
+                        timestamp.toDate(),
+                      );
+                      if (diff.inMinutes >= 30) isExpired = true;
+                    }
+
+                    if (!isExpired) {
+                      currentFriendsHere.add(userId);
+                    }
+                  }
+                }
+              });
+            }
+
+            // Check for new arrivals
+            // If a friend is now here, who wasn't here before
+            final newArrivals = currentFriendsHere.difference(_friendsOnSpot);
+
+            if (newArrivals.isNotEmpty) {
+              if (_isFirstSpotLoad) {
+                // First load: Friend is already here
+                print("DEBUG: Friend Already Here Triggered");
+                _triggerHeavyHaptic(
+                  "Your friends are already studying here! 🏠",
+                );
+              } else {
+                // Subsequent update: Friend just arrived
+                print("DEBUG: Friend Arrival Triggered");
+                _triggerHeavyHaptic("A friend is in the library! 🏠");
+              }
+            }
+
+            _friendsOnSpot = currentFriendsHere;
+            _isFirstSpotLoad = false;
+          });
     }
   }
 
@@ -153,10 +158,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            message,
-            style: GoogleFonts.alata(color: Colors.white),
-          ),
+          content: Text(message, style: GoogleFonts.alata(color: Colors.white)),
           backgroundColor: Colors.black87,
           duration: const Duration(seconds: 3),
         ),
