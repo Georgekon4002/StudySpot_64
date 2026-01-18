@@ -103,7 +103,7 @@
    *Όπου X ένα αριθμός από το 2 έως το 6. Υπάρχει account και χωρίς το Χ*
 
 | Home Screen | Reserve | Leave |
-|----------------|-----------|-------|
+|-------------|---------|-------|
 | ![Home](AppIcons/screenshots/home.jpg) | ![Reserve](AppIcons/screenshots/reserve.jpg) | ![Leave](AppIcons/screenshots/leave.jpg) |
 
 - Δοκιμάστε να πατήσετε μία άδεια θέση και να την κάνετε reserve για 30 λεπτά.
@@ -120,7 +120,7 @@
 - Δείτε άλλα προφίλ που μπορεί να βρίσκονται εντός του αναγνωστηρίου (αν είναι κάποιος φίλος σας η εφαρμογή φροντίζει να σας ειδοποιήσει) πατώντας το profile icon τους πάνω στη θέση τους. Προσθέστε τον χρήστη αυτόν ως φίλο ή απλώς δείτε το προφίλ του.
 
 | My Profile | Edit Profile | Profile |
-|----------------|-----------|-------|
+|------------|--------------|---------|
 | ![My Profile](AppIcons/screenshots/my_profile.jpg) | ![Edit Profile](AppIcons/screenshots/edit_profile.jpg) | ![Profile](AppIcons/screenshots/profile.jpg) |
 
 ---
