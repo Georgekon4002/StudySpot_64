@@ -110,8 +110,8 @@
 - Δοκιμάστε να σκανάρετε ένα από τα ακόλουθα [QR](https://drive.google.com/drive/folders/1EBYBLF5RCDEIcXP_vOozZaH6MIOC0p3u?usp=drive_link) όπως παράχθηκαν από το [qr.io](https://qr.io) πατώντας το Floating Button κάτω αριστερά:
 
 | Seat 1A | Seat 2B | Seat 5D | Seat 6C | Seat 8C | Seat 13A |
-|-----------|---------|---------|---------|---------|---------|
-| ![Seat 1A](AppIcons/qr/Seat1A.jpg) | ![Seat 2B](AppIcons/qr/Seat2B.jpg) | ![Seat 5D](AppIcons/qr/Seat5D.jpg) | ![Seat 6C](AppIcons/qr/Seat6C.jpg) | ![Seat 8C](AppIcons/qr/Seat8C.jpg) | ![Seat 13A](AppIcons/qr/Seat13A.jpg) |
+|---------|---------|---------|---------|---------|---------|
+| ![Seat 1A](AppIcons/qr/Seat1A.png) | ![Seat 2B](AppIcons/qr/Seat2B.jpg) | ![Seat 5D](AppIcons/qr/Seat5D.jpg) | ![Seat 6C](AppIcons/qr/Seat6C.jpg) | ![Seat 8C](AppIcons/qr/Seat8C.jpg) | ![Seat 13A](AppIcons/qr/Seat13A.jpg) |
 
 - Αν η θέση είναι ελεύθερη θα δείτε το σχετικό μήνυμα και θα έχετε τη θέση δική σας και το status σας από Coming Soon θα γίνει Seated (μπορείτε να το δείτε στο Profile Screen πατώντας το Profile Icon). Τώρα το Floating Button είναι στη λειτουργία 'Leave' για να δηλώσετε την αποχώρησή σας.
 
